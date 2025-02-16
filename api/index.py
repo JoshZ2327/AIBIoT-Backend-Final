@@ -114,31 +114,38 @@ def connect_data_source(request: DataSourceRequest):
     }
     return {"message": f"Data source '{request.name}' connected successfully"}
 
-### ✅ AI-Powered Business Question Answering ###
+### ✅ AI-Powered Business Question Answering (Enhanced) ###
 @app.post("/ask-question")
 def ask_business_question(request: BusinessQuestion):
     """Processes user business queries using AI and available data sources."""
     query = request.question.lower()
-    
-    # If the question is about IoT data
+
+    # 1️⃣ Check if the question is about IoT data
     if "iot" in query or "sensor" in query:
         latest_data = iot_data[-1]
         return {"answer": f"Latest IoT reading: {latest_data['sensor']} - {latest_data['value']} at {latest_data['timestamp']}"}
 
-    # If the question is about spare parts inventory
+    # 2️⃣ Check if the question is about spare parts inventory
     if "inventory" in query or "restock" in query:
         inventory_info = check_inventory()
         return {"answer": f"Spare parts that need restocking: {inventory_info}"}
 
-    # If question requires AI-powered reasoning
+    # 3️⃣ If the question is related to connected data sources
+    for source_name, source_details in data_sources.items():
+        if source_name.lower() in query:
+            return {"answer": f"Connected data source '{source_name}' is available. Data type: {source_details['type']}"}
+
+    # 4️⃣ If the question requires AI-powered reasoning with business intelligence
     response = openai.ChatCompletion.create(
         model="gpt-4",
-        messages=[{"role": "system", "content": "You are a business analyst AI."},
-                  {"role": "user", "content": request.question}]
+        messages=[
+            {"role": "system", "content": "You are an advanced business intelligence AI. Use multi-step reasoning."},
+            {"role": "user", "content": request.question}
+        ]
     )
     return {"answer": response["choices"][0]["message"]["content"]}
 
-### ✅ NEW: AI-Powered Dashboard Insights ###
+### ✅ AI-Powered Dashboard Insights ###
 @app.post("/ai-dashboard")
 def ai_dashboard(request: DashboardRequest):
     """Generates AI-driven business insights based on selected filters."""
