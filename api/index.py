@@ -6,8 +6,18 @@ import openai  # AI-powered question answering
 import sqlite3  # Example database integration
 import pandas as pd  # CSV support
 import os
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+# Enable CORS for frontend integration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # AI Configuration (Replace with your OpenAI API key)
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -42,6 +52,10 @@ class DataSourceRequest(BaseModel):
 
 class BusinessQuestion(BaseModel):
     question: str
+
+class DashboardRequest(BaseModel):
+    dateRange: int
+    category: str
 
 @app.get("/")
 def read_root():
@@ -87,7 +101,7 @@ def schedule_maintenance(request: MaintenanceRequest):
     technician = random.choice(["Technician A", "Technician B", "Technician C"])
     return {"technician": technician}
 
-### ✅ NEW: Connect Data Sources ###
+### ✅ Connect Data Sources ###
 @app.post("/connect-data-source")
 def connect_data_source(request: DataSourceRequest):
     """Allows users to connect SQL databases, CSV files, or APIs."""
@@ -100,7 +114,7 @@ def connect_data_source(request: DataSourceRequest):
     }
     return {"message": f"Data source '{request.name}' connected successfully"}
 
-### ✅ NEW: AI-Powered Business Question Answering ###
+### ✅ AI-Powered Business Question Answering ###
 @app.post("/ask-question")
 def ask_business_question(request: BusinessQuestion):
     """Processes user business queries using AI and available data sources."""
@@ -123,3 +137,25 @@ def ask_business_question(request: BusinessQuestion):
                   {"role": "user", "content": request.question}]
     )
     return {"answer": response["choices"][0]["message"]["content"]}
+
+### ✅ NEW: AI-Powered Dashboard Insights ###
+@app.post("/ai-dashboard")
+def ai_dashboard(request: DashboardRequest):
+    """Generates AI-driven business insights based on selected filters."""
+    today = datetime.date.today()
+    dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.dateRange)][::-1]
+
+    data = {
+        "revenue": round(random.uniform(50000, 200000), 2),
+        "users": random.randint(1000, 5000),
+        "traffic": random.randint(10000, 50000),
+        "revenueTrends": {"dates": dates, "values": [random.uniform(5000, 20000) for _ in range(request.dateRange)]},
+        "userTrends": {"dates": dates, "values": [random.randint(50, 200) for _ in range(request.dateRange)]},
+        "trafficTrends": {"values": [random.randint(2000, 15000), random.randint(1000, 10000), random.randint(500, 5000)]},
+    }
+    return data
+
+### ✅ Run the App ###
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
