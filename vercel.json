@@ -1,5 +1,8 @@
 {
-  "builds": [
-    { "src": "Dockerfile", "use": "@vercel/docker" }
-  ]
+  "version": 2,
+  "builds": [{ "src": "Dockerfile", "use": "@vercel/docker" }],
+  "routes": [{ "src": "/(.*)", "dest": "/" }],
+  "env": {
+    "OPENAI_API_KEY": "@openai_api_key"
+  }
 }
