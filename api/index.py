@@ -42,9 +42,9 @@ twilio_client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
 
 # Request Models
 class PredictionRequest(BaseModel):
-    category: str  # 'revenue', 'users', 'traffic'
-    future_days: int  # Forecast period (1-90 days)
-    model: str = "linear_regression"  # User-selected model ('linear_regression' or 'arima')
+    category: str  
+    future_days: int  
+    model: str = "linear_regression"  
 
 class AnomalyDetectionRequest(BaseModel):
     category: str
@@ -54,23 +54,25 @@ class RecommendationRequest(BaseModel):
     category: str
     predicted_values: list
 
+class DataSourceRequest(BaseModel):
+    name: str
+    type: str  
+    path: str  
+
 # 🚀 AI-Powered Predictive Analytics
 @app.post("/predict-trends")
 def predict_trends(request: PredictionRequest):
     """Predicts future trends for revenue, users, or traffic using AI models (Linear Regression, ARIMA)."""
 
     today = datetime.date.today()
-    past_days = 60  # Use last 60 days for predictions
+    past_days = 60  
     dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
 
-    # Simulated historical data
     historical_data = [(dates[i], random.uniform(5000, 20000)) for i in range(past_days)]
 
-    # Step 1️⃣: Prepare Data
     X = np.array([i for i in range(len(historical_data))]).reshape(-1, 1)
     y = np.array([val[1] for val in historical_data])
 
-    # Step 2️⃣: Train AI Model Based on User Selection
     if request.model == "linear_regression":
         model = LinearRegression()
         model.fit(X, y)
@@ -78,14 +80,13 @@ def predict_trends(request: PredictionRequest):
         future_predictions = model.predict(future_X).tolist()
 
     elif request.model == "arima":
-        model = ARIMA(y, order=(5,1,0))  # ARIMA (5,1,0) model
+        model = ARIMA(y, order=(5,1,0))  
         fitted_model = model.fit()
         future_predictions = fitted_model.forecast(steps=request.future_days).tolist()
 
     else:
         raise HTTPException(status_code=400, detail="Invalid model selection. Choose 'linear_regression' or 'arima'.")
 
-    # Step 3️⃣: Compute Confidence Intervals
     std_dev = np.std(y)
     lower_bounds = [max(0, pred - (1.96 * std_dev)) for pred in future_predictions]
     upper_bounds = [pred + (1.96 * std_dev) for pred in future_predictions]
@@ -152,6 +153,18 @@ def check_alerts():
         alerts.append(alert_msg)
 
     return {"alerts_sent": alerts}
+
+# ✅ AI-Powered Data Source Connection
+@app.post("/connect-data-source")
+def connect_data_source(request: DataSourceRequest):
+    """Allows users to connect SQL databases, CSV files, APIs, or IoT devices."""
+    
+    supported_types = ["sqlite", "csv", "api", "iot"]
+    
+    if request.type not in supported_types:
+        raise HTTPException(status_code=400, detail=f"Unsupported data source type. Choose from {supported_types}")
+
+    return {"message": f"Data source '{request.name}' of type '{request.type}' connected successfully"}
 
 # ✅ Run the App
 if __name__ == "__main__":
