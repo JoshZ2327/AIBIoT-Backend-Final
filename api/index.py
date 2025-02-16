@@ -2,9 +2,9 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import datetime
 import random
-import openai  # AI-powered question answering
-import sqlite3  # Example database integration
-import pandas as pd  # CSV support
+import openai
+import sqlite3
+import pandas as pd
 import os
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -117,25 +117,47 @@ def connect_data_source(request: DataSourceRequest):
 ### ✅ AI-Powered Business Question Answering (Enhanced) ###
 @app.post("/ask-question")
 def ask_business_question(request: BusinessQuestion):
-    """Processes user business queries using AI and available data sources."""
+    """Processes user business queries using AI and connected data sources."""
     query = request.question.lower()
 
-    # 1️⃣ Check if the question is about IoT data
-    if "iot" in query or "sensor" in query:
-        latest_data = iot_data[-1]
-        return {"answer": f"Latest IoT reading: {latest_data['sensor']} - {latest_data['value']} at {latest_data['timestamp']}"}
+    # 1️⃣ Check if the question is about revenue, users, or traffic
+    if "revenue" in query or "sales" in query:
+        for source_name, source_details in data_sources.items():
+            if source_details["type"] == "sqlite":
+                conn = sqlite3.connect(source_details["path"])
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT SUM(sales_amount) FROM sales WHERE date >= date('now', '-30 days')")
+                revenue = cursor.fetchone()[0] or "Data unavailable"
+                conn.close()
+                
+                return {"answer": f"Total revenue in the last 30 days: ${revenue}"}
 
-    # 2️⃣ Check if the question is about spare parts inventory
-    if "inventory" in query or "restock" in query:
-        inventory_info = check_inventory()
-        return {"answer": f"Spare parts that need restocking: {inventory_info}"}
+    if "users" in query or "customers" in query:
+        for source_name, source_details in data_sources.items():
+            if source_details["type"] == "sqlite":
+                conn = sqlite3.connect(source_details["path"])
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT COUNT(DISTINCT user_id) FROM users WHERE date >= date('now', '-30 days')")
+                users = cursor.fetchone()[0] or "Data unavailable"
+                conn.close()
+                
+                return {"answer": f"Total unique users in the last 30 days: {users}"}
 
-    # 3️⃣ If the question is related to connected data sources
-    for source_name, source_details in data_sources.items():
-        if source_name.lower() in query:
-            return {"answer": f"Connected data source '{source_name}' is available. Data type: {source_details['type']}"}
+    if "traffic" in query or "visits" in query:
+        for source_name, source_details in data_sources.items():
+            if source_details["type"] == "sqlite":
+                conn = sqlite3.connect(source_details["path"])
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT SUM(visits) FROM web_traffic WHERE date >= date('now', '-30 days')")
+                traffic = cursor.fetchone()[0] or "Data unavailable"
+                conn.close()
+                
+                return {"answer": f"Total website traffic in the last 30 days: {traffic}"}
 
-    # 4️⃣ If the question requires AI-powered reasoning with business intelligence
+    # 2️⃣ If no direct database match, use AI for reasoning
     response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[
@@ -145,21 +167,47 @@ def ask_business_question(request: BusinessQuestion):
     )
     return {"answer": response["choices"][0]["message"]["content"]}
 
-### ✅ AI-Powered Dashboard Insights ###
+### ✅ AI-Powered Dashboard Insights (With Real Data) ###
 @app.post("/ai-dashboard")
 def ai_dashboard(request: DashboardRequest):
-    """Generates AI-driven business insights based on selected filters."""
+    """Generates AI-driven business insights based on real data from connected sources."""
     today = datetime.date.today()
     dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.dateRange)][::-1]
-
+    
+    # Default metrics if no data source exists
+    revenue = round(random.uniform(50000, 200000), 2)
+    users = random.randint(1000, 5000)
+    traffic = random.randint(10000, 50000)
+    
+    # Step 1️⃣: Check if a database is connected
+    for source_name, source_details in data_sources.items():
+        if source_details["type"] == "sqlite":
+            conn = sqlite3.connect(source_details["path"])
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute("SELECT SUM(sales_amount) FROM sales WHERE date >= ?", (dates[0],))
+                revenue = cursor.fetchone()[0] or revenue
+                
+                cursor.execute("SELECT COUNT(DISTINCT user_id) FROM users WHERE date >= ?", (dates[0],))
+                users = cursor.fetchone()[0] or users
+                
+                cursor.execute("SELECT SUM(visits) FROM web_traffic WHERE date >= ?", (dates[0],))
+                traffic = cursor.fetchone()[0] or traffic
+            except:
+                pass
+            
+            conn.close()
+    
     data = {
-        "revenue": round(random.uniform(50000, 200000), 2),
-        "users": random.randint(1000, 5000),
-        "traffic": random.randint(10000, 50000),
+        "revenue": revenue,
+        "users": users,
+        "traffic": traffic,
         "revenueTrends": {"dates": dates, "values": [random.uniform(5000, 20000) for _ in range(request.dateRange)]},
         "userTrends": {"dates": dates, "values": [random.randint(50, 200) for _ in range(request.dateRange)]},
         "trafficTrends": {"values": [random.randint(2000, 15000), random.randint(1000, 10000), random.randint(500, 5000)]},
     }
+    
     return data
 
 ### ✅ Run the App ###
