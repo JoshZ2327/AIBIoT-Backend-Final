@@ -63,6 +63,10 @@ class PredictionRequest(BaseModel):
     category: str  # 'revenue', 'users', 'traffic'
     future_days: int  # Forecast period (1-90 days)
 
+class RecommendationRequest(BaseModel):
+    category: str
+    predicted_values: list
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to AIBIoT Backend API!"}
@@ -143,37 +147,20 @@ def ask_business_question(request: BusinessQuestion):
     )
     return {"answer": response["choices"][0]["message"]["content"]}
 
-### ✅ AI-Powered Dashboard Insights ###
-@app.post("/ai-dashboard")
-def ai_dashboard(request: DashboardRequest):
-    """Generates AI-driven business insights based on selected filters."""
-    today = datetime.date.today()
-    dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.dateRange)][::-1]
-
-    data = {
-        "revenue": round(random.uniform(50000, 200000), 2),
-        "users": random.randint(1000, 5000),
-        "traffic": random.randint(10000, 50000),
-        "revenueTrends": {"dates": dates, "values": [random.uniform(5000, 20000) for _ in range(request.dateRange)]},
-        "userTrends": {"dates": dates, "values": [random.randint(50, 200) for _ in range(request.dateRange)]},
-        "trafficTrends": {"values": [random.randint(2000, 15000), random.randint(1000, 10000), random.randint(500, 5000)]},
-    }
-    return data
-
 ### ✅ AI-Powered Predictive Analytics ###
 @app.post("/predict-trends")
 def predict_trends(request: PredictionRequest):
     """Predicts future trends for revenue, users, or traffic using AI models."""
     
     today = datetime.date.today()
-    past_days = 30  # Use last 30 days for training
+    past_days = 30
     dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
 
     historical_data = [(dates[i], random.uniform(5000, 20000)) for i in range(past_days)]
-    
+
     # Step 1️⃣: Prepare Data for Prediction
-    X = np.array([i for i in range(len(historical_data))]).reshape(-1, 1)  # Day indexes
-    y = np.array([val[1] for val in historical_data])  # Metric values
+    X = np.array([i for i in range(len(historical_data))]).reshape(-1, 1)
+    y = np.array([val[1] for val in historical_data])
 
     # Step 2️⃣: Train AI Model (Linear Regression)
     model = LinearRegression()
@@ -192,6 +179,42 @@ def predict_trends(request: PredictionRequest):
             "values": future_predictions
         }
     }
+
+### ✅ AI-Powered Business Recommendations ###
+@app.post("/ai-recommendations")
+def ai_recommendations(request: RecommendationRequest):
+    """Generates AI-driven recommendations based on predicted trends."""
+
+    recommendations = []
+
+    if request.category == "revenue":
+        avg_revenue = sum(request.predicted_values) / len(request.predicted_values)
+        if avg_revenue < 50000:
+            recommendations.append("🚀 Consider running a marketing campaign to boost sales.")
+            recommendations.append("📉 Reduce expenses or optimize pricing strategy.")
+        elif avg_revenue > 150000:
+            recommendations.append("📈 Invest in scaling operations for future growth.")
+            recommendations.append("💡 Explore new product launches or market expansion.")
+
+    if request.category == "users":
+        avg_users = sum(request.predicted_values) / len(request.predicted_values)
+        if avg_users < 1000:
+            recommendations.append("📢 Improve onboarding experience to retain users.")
+            recommendations.append("💬 Implement personalized engagement strategies.")
+        elif avg_users > 3000:
+            recommendations.append("🔄 Increase customer support to handle higher demand.")
+            recommendations.append("🎉 Reward loyal users with discounts or perks.")
+
+    if request.category == "traffic":
+        avg_traffic = sum(request.predicted_values) / len(request.predicted_values)
+        if avg_traffic < 10000:
+            recommendations.append("📌 Optimize SEO and run social media ads.")
+            recommendations.append("📍 Collaborate with influencers for brand visibility.")
+        elif avg_traffic > 30000:
+            recommendations.append("📊 Analyze visitor behavior to improve conversions.")
+            recommendations.append("⚡ Ensure website performance is optimized for high traffic.")
+
+    return {"category": request.category, "recommendations": recommendations}
 
 ### ✅ Run the App ###
 if __name__ == "__main__":
