@@ -1,198 +1,125 @@
-import os
-import time
-import logging
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 import datetime
-from typing import Optional
+import random
+import openai  # AI-powered question answering
+import sqlite3  # Example database integration
+import pandas as pd  # CSV support
+import os
 
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel, EmailStr
-from sqlalchemy import create_engine, Column, Integer, String, DateTime
-from sqlalchemy.orm import sessionmaker, declarative_base, Session
-from passlib.context import CryptContext
-import jwt
-import openai
+app = FastAPI()
 
-# ----- Logging Setup -----
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# AI Configuration (Replace with your OpenAI API key)
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# ----- Configuration -----
-DATABASE_URL = "sqlite:///./aibiot.db"
-SECRET_KEY = "your-secret-key"  # Replace with a secure random value in production
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Simulated IoT Data Storage
+iot_data = [
+    {"timestamp": datetime.datetime.utcnow(), "sensor": "temperature", "value": 22.5},
+    {"timestamp": datetime.datetime.utcnow(), "sensor": "humidity", "value": 55},
+    {"timestamp": datetime.datetime.utcnow(), "sensor": "pressure", "value": 1012}
+]
 
-# Set the OpenAI API key from an environment variable
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+# Simulated Spare Parts Inventory
+spare_parts_inventory = {
+    "motor_bearing": {"current_stock": 5, "min_stock": 3, "supplier": "Supplier A"},
+    "sensor_chip": {"current_stock": 8, "min_stock": 5, "supplier": "Supplier B"},
+}
 
-# ----- Database Setup -----
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+# Store connected data sources
+data_sources = {}
 
-class UserModel(Base):
-    __tablename__ = "users"
+# Request Models
+class MaintenanceRequest(BaseModel):
+    sensor_type: str
+
+class RestockOrderRequest(BaseModel):
+    part_name: str
+
+class DataSourceRequest(BaseModel):
+    name: str
+    type: str  # 'sqlite', 'csv', 'api'
+    path: str  # File path, database URI, or API URL
+
+class BusinessQuestion(BaseModel):
+    question: str
+
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to AIBIoT Backend API!"}
+
+@app.get("/latest-iot-data")
+def get_latest_iot_data():
+    latest_data = iot_data[-1]
+    return {"latest_reading": latest_data}
+
+@app.get("/iot-history")
+def get_iot_history():
+    return {"history": iot_data}
+
+@app.post("/predict-maintenance")
+def predict_maintenance(request: MaintenanceRequest):
+    next_maintenance = datetime.datetime.utcnow() + datetime.timedelta(days=random.randint(5, 30))
+    return {"next_maintenance": next_maintenance.strftime("%Y-%m-%d")}
+
+@app.get("/check-inventory")
+def check_inventory():
+    restock_recommendations = []
+    for part, details in spare_parts_inventory.items():
+        if details["current_stock"] <= details["min_stock"]:
+            restock_recommendations.append({
+                "part_name": part,
+                "current_stock": details["current_stock"],
+                "recommended_order_quantity": details["min_stock"] * 2,
+                "supplier": details["supplier"]
+            })
+    return {"restock_recommendations": restock_recommendations}
+
+@app.post("/generate-restock-order")
+def generate_restock_order(request: RestockOrderRequest):
+    if request.part_name not in spare_parts_inventory:
+        raise HTTPException(status_code=404, detail="Part not found")
+
+    supplier = spare_parts_inventory[request.part_name]["supplier"]
+    return {"message": f"Restock order placed for {request.part_name} from {supplier}"}
+
+@app.post("/schedule-maintenance")
+def schedule_maintenance(request: MaintenanceRequest):
+    technician = random.choice(["Technician A", "Technician B", "Technician C"])
+    return {"technician": technician}
+
+### ✅ NEW: Connect Data Sources ###
+@app.post("/connect-data-source")
+def connect_data_source(request: DataSourceRequest):
+    """Allows users to connect SQL databases, CSV files, or APIs."""
+    if request.type not in ["sqlite", "csv", "api"]:
+        raise HTTPException(status_code=400, detail="Unsupported data source type")
     
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    full_name = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    data_sources[request.name] = {
+        "type": request.type,
+        "path": request.path
+    }
+    return {"message": f"Data source '{request.name}' connected successfully"}
 
-# Create the database tables if they do not exist
-Base.metadata.create_all(bind=engine)
+### ✅ NEW: AI-Powered Business Question Answering ###
+@app.post("/ask-question")
+def ask_business_question(request: BusinessQuestion):
+    """Processes user business queries using AI and available data sources."""
+    query = request.question.lower()
+    
+    # If the question is about IoT data
+    if "iot" in query or "sensor" in query:
+        latest_data = iot_data[-1]
+        return {"answer": f"Latest IoT reading: {latest_data['sensor']} - {latest_data['value']} at {latest_data['timestamp']}"}
 
-# ----- Pydantic Schemas -----
-class UserBase(BaseModel):
-    email: EmailStr
-    full_name: Optional[str] = None
+    # If the question is about spare parts inventory
+    if "inventory" in query or "restock" in query:
+        inventory_info = check_inventory()
+        return {"answer": f"Spare parts that need restocking: {inventory_info}"}
 
-class UserCreate(UserBase):
-    password: str
-
-class UserResponse(UserBase):
-    id: int
-    created_at: datetime.datetime
-
-    class Config:
-        orm_mode = True
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class TokenData(BaseModel):
-    email: Optional[str] = None
-
-class QueryRequest(BaseModel):
-    query: str
-
-class QueryResponse(BaseModel):
-    response: str
-
-# ----- Security Utilities -----
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] = None) -> str:
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.datetime.utcnow() + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-# ----- Database Dependency -----
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-def get_user_by_email(db: Session, email: str) -> Optional[UserModel]:
-    return db.query(UserModel).filter(UserModel.email == email).first()
-
-def authenticate_user(db: Session, email: str, password: str) -> Optional[UserModel]:
-    user = get_user_by_email(db, email)
-    if not user or not verify_password(password, user.hashed_password):
-        return None
-    return user
-
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> UserModel:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
+    # If question requires AI-powered reasoning
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[{"role": "system", "content": "You are a business analyst AI."},
+                  {"role": "user", "content": request.question}]
     )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-        token_data = TokenData(email=email)
-    except jwt.PyJWTError:
-        raise credentials_exception
-    user = get_user_by_email(db, email=token_data.email)
-    if user is None:
-        raise credentials_exception
-    return user
-
-# ----- FastAPI Application Setup -----
-app = FastAPI(title="AIBIoT Robust AI Engine Backend")
-
-# Enable CORS (adjust origins for production)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ----- Endpoints -----
-
-@app.post("/signup", response_model=UserResponse)
-def signup(user: UserCreate, db: Session = Depends(get_db)):
-    if get_user_by_email(db, user.email):
-        raise HTTPException(status_code=400, detail="Email already registered")
-    hashed_pw = get_password_hash(user.password)
-    new_user = UserModel(email=user.email, full_name=user.full_name, hashed_password=hashed_pw)
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    logger.info(f"New user registered: {new_user.email}")
-    return new_user
-
-@app.post("/login", response_model=Token)
-def login(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = authenticate_user(db, user.email, user.password)
-    if not db_user:
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
-    access_token = create_access_token(data={"sub": db_user.email})
-    logger.info(f"User logged in: {db_user.email}")
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@app.post("/query", response_model=QueryResponse)
-def query_data(query_request: QueryRequest, current_user: UserModel = Depends(get_current_user)):
-    logger.info(f"Received query from {current_user.email}: {query_request.query}")
-    try:
-        completion = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=query_request.query,
-            max_tokens=150,
-            temperature=0.7,
-        )
-        response_text = completion.choices[0].text.strip()
-    except Exception as e:
-        logger.error(f"OpenAI API error: {e}")
-        raise HTTPException(status_code=500, detail="Error generating AI response")
-    return QueryResponse(response=response_text)
-
-@app.post("/train")
-def train_model(background_tasks: BackgroundTasks, current_user: UserModel = Depends(get_current_user)):
-    def simulate_training():
-        logger.info(f"Training started for {current_user.email}")
-        time.sleep(5)  # Simulate time-consuming training
-        logger.info(f"Training completed for {current_user.email}")
-    background_tasks.add_task(simulate_training)
-    return {"message": "Model training started"}
-
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
-
-# ----- Main Entry Point -----
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("index:app", host="0.0.0.0", port=8000, reload=True)
+    return {"answer": response["choices"][0]["message"]["content"]}
