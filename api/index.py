@@ -8,6 +8,7 @@ import pandas as pd
 import os
 import numpy as np
 from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import IsolationForest
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -62,6 +63,10 @@ class DashboardRequest(BaseModel):
 class PredictionRequest(BaseModel):
     category: str  # 'revenue', 'users', 'traffic'
     future_days: int  # Forecast period (1-90 days)
+
+class AnomalyDetectionRequest(BaseModel):
+    category: str  # 'revenue', 'users', 'traffic'
+    values: list  # Historical values for anomaly detection
 
 class RecommendationRequest(BaseModel):
     category: str
@@ -126,27 +131,6 @@ def connect_data_source(request: DataSourceRequest):
     }
     return {"message": f"Data source '{request.name}' connected successfully"}
 
-### ✅ AI-Powered Business Question Answering ###
-@app.post("/ask-question")
-def ask_business_question(request: BusinessQuestion):
-    """Processes user business queries using AI and available data sources."""
-    query = request.question.lower()
-
-    # Search for relevant data in connected sources
-    for source_name, source_details in data_sources.items():
-        if source_name.lower() in query:
-            return {"answer": f"Connected data source '{source_name}' is available. Data type: {source_details['type']}"}
-
-    # AI-powered reasoning
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "You are an advanced business intelligence AI. Use multi-step reasoning."},
-            {"role": "user", "content": request.question}
-        ]
-    )
-    return {"answer": response["choices"][0]["message"]["content"]}
-
 ### ✅ AI-Powered Predictive Analytics ###
 @app.post("/predict-trends")
 def predict_trends(request: PredictionRequest):
@@ -180,6 +164,23 @@ def predict_trends(request: PredictionRequest):
         }
     }
 
+### ✅ AI-Powered Anomaly Detection ###
+@app.post("/detect-anomalies")
+def detect_anomalies(request: AnomalyDetectionRequest):
+    """Detects anomalies in business data trends using an Isolation Forest model."""
+
+    values = np.array(request.values).reshape(-1, 1)
+    model = IsolationForest(contamination=0.1, random_state=42)
+    model.fit(values)
+
+    anomaly_scores = model.decision_function(values).tolist()
+    anomaly_labels = model.predict(values).tolist()
+
+    anomalies = [{"value": request.values[i], "score": anomaly_scores[i], "is_anomaly": anomaly_labels[i] == -1} 
+                 for i in range(len(request.values))]
+
+    return {"category": request.category, "anomalies": anomalies}
+
 ### ✅ AI-Powered Business Recommendations ###
 @app.post("/ai-recommendations")
 def ai_recommendations(request: RecommendationRequest):
@@ -191,28 +192,22 @@ def ai_recommendations(request: RecommendationRequest):
         avg_revenue = sum(request.predicted_values) / len(request.predicted_values)
         if avg_revenue < 50000:
             recommendations.append("🚀 Consider running a marketing campaign to boost sales.")
-            recommendations.append("📉 Reduce expenses or optimize pricing strategy.")
         elif avg_revenue > 150000:
             recommendations.append("📈 Invest in scaling operations for future growth.")
-            recommendations.append("💡 Explore new product launches or market expansion.")
 
     if request.category == "users":
         avg_users = sum(request.predicted_values) / len(request.predicted_values)
         if avg_users < 1000:
             recommendations.append("📢 Improve onboarding experience to retain users.")
-            recommendations.append("💬 Implement personalized engagement strategies.")
         elif avg_users > 3000:
             recommendations.append("🔄 Increase customer support to handle higher demand.")
-            recommendations.append("🎉 Reward loyal users with discounts or perks.")
 
     if request.category == "traffic":
         avg_traffic = sum(request.predicted_values) / len(request.predicted_values)
         if avg_traffic < 10000:
             recommendations.append("📌 Optimize SEO and run social media ads.")
-            recommendations.append("📍 Collaborate with influencers for brand visibility.")
         elif avg_traffic > 30000:
             recommendations.append("📊 Analyze visitor behavior to improve conversions.")
-            recommendations.append("⚡ Ensure website performance is optimized for high traffic.")
 
     return {"category": request.category, "recommendations": recommendations}
 
