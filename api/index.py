@@ -6,6 +6,8 @@ import openai
 import sqlite3
 import pandas as pd
 import os
+import numpy as np
+from sklearn.linear_model import LinearRegression
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -56,6 +58,10 @@ class BusinessQuestion(BaseModel):
 class DashboardRequest(BaseModel):
     dateRange: int
     category: str
+
+class PredictionRequest(BaseModel):
+    category: str  # 'revenue', 'users', 'traffic'
+    future_days: int  # How many days to predict
 
 @app.get("/")
 def read_root():
@@ -114,50 +120,16 @@ def connect_data_source(request: DataSourceRequest):
     }
     return {"message": f"Data source '{request.name}' connected successfully"}
 
-### ✅ AI-Powered Business Question Answering (Enhanced) ###
+### ✅ AI-Powered Business Question Answering ###
 @app.post("/ask-question")
 def ask_business_question(request: BusinessQuestion):
-    """Processes user business queries using AI and connected data sources."""
+    """Processes user business queries using AI and available data sources."""
     query = request.question.lower()
 
-    # 1️⃣ Check if the question is about revenue, users, or traffic
-    if "revenue" in query or "sales" in query:
-        for source_name, source_details in data_sources.items():
-            if source_details["type"] == "sqlite":
-                conn = sqlite3.connect(source_details["path"])
-                cursor = conn.cursor()
-                
-                cursor.execute("SELECT SUM(sales_amount) FROM sales WHERE date >= date('now', '-30 days')")
-                revenue = cursor.fetchone()[0] or "Data unavailable"
-                conn.close()
-                
-                return {"answer": f"Total revenue in the last 30 days: ${revenue}"}
+    for source_name, source_details in data_sources.items():
+        if source_name.lower() in query:
+            return {"answer": f"Connected data source '{source_name}' is available. Data type: {source_details['type']}"}
 
-    if "users" in query or "customers" in query:
-        for source_name, source_details in data_sources.items():
-            if source_details["type"] == "sqlite":
-                conn = sqlite3.connect(source_details["path"])
-                cursor = conn.cursor()
-                
-                cursor.execute("SELECT COUNT(DISTINCT user_id) FROM users WHERE date >= date('now', '-30 days')")
-                users = cursor.fetchone()[0] or "Data unavailable"
-                conn.close()
-                
-                return {"answer": f"Total unique users in the last 30 days: {users}"}
-
-    if "traffic" in query or "visits" in query:
-        for source_name, source_details in data_sources.items():
-            if source_details["type"] == "sqlite":
-                conn = sqlite3.connect(source_details["path"])
-                cursor = conn.cursor()
-                
-                cursor.execute("SELECT SUM(visits) FROM web_traffic WHERE date >= date('now', '-30 days')")
-                traffic = cursor.fetchone()[0] or "Data unavailable"
-                conn.close()
-                
-                return {"answer": f"Total website traffic in the last 30 days: {traffic}"}
-
-    # 2️⃣ If no direct database match, use AI for reasoning
     response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[
@@ -167,48 +139,79 @@ def ask_business_question(request: BusinessQuestion):
     )
     return {"answer": response["choices"][0]["message"]["content"]}
 
-### ✅ AI-Powered Dashboard Insights (With Real Data) ###
+### ✅ AI-Powered Dashboard Insights ###
 @app.post("/ai-dashboard")
 def ai_dashboard(request: DashboardRequest):
-    """Generates AI-driven business insights based on real data from connected sources."""
+    """Generates AI-driven business insights based on selected filters."""
     today = datetime.date.today()
     dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.dateRange)][::-1]
+
+    data = {
+        "revenue": round(random.uniform(50000, 200000), 2),
+        "users": random.randint(1000, 5000),
+        "traffic": random.randint(10000, 50000),
+        "revenueTrends": {"dates": dates, "values": [random.uniform(5000, 20000) for _ in range(request.dateRange)]},
+        "userTrends": {"dates": dates, "values": [random.randint(50, 200) for _ in range(request.dateRange)]},
+        "trafficTrends": {"values": [random.randint(2000, 15000), random.randint(1000, 10000), random.randint(500, 5000)]},
+    }
+    return data
+
+### ✅ AI-Powered Predictive Analytics ###
+@app.post("/predict-trends")
+def predict_trends(request: PredictionRequest):
+    """Predicts future trends for revenue, users, or traffic using AI models."""
     
-    # Default metrics if no data source exists
-    revenue = round(random.uniform(50000, 200000), 2)
-    users = random.randint(1000, 5000)
-    traffic = random.randint(10000, 50000)
+    today = datetime.date.today()
+    past_days = 30  # Use last 30 days for predictions
+    dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
+
+    historical_data = []
     
-    # Step 1️⃣: Check if a database is connected
+    # Step 1️⃣: Check for connected data sources
     for source_name, source_details in data_sources.items():
         if source_details["type"] == "sqlite":
             conn = sqlite3.connect(source_details["path"])
             cursor = conn.cursor()
             
             try:
-                cursor.execute("SELECT SUM(sales_amount) FROM sales WHERE date >= ?", (dates[0],))
-                revenue = cursor.fetchone()[0] or revenue
+                if request.category == "revenue":
+                    cursor.execute("SELECT date, SUM(sales_amount) FROM sales WHERE date >= ? GROUP BY date", (dates[0],))
+                elif request.category == "users":
+                    cursor.execute("SELECT date, COUNT(DISTINCT user_id) FROM users WHERE date >= ? GROUP BY date", (dates[0],))
+                elif request.category == "traffic":
+                    cursor.execute("SELECT date, SUM(visits) FROM web_traffic WHERE date >= ? GROUP BY date", (dates[0],))
                 
-                cursor.execute("SELECT COUNT(DISTINCT user_id) FROM users WHERE date >= ?", (dates[0],))
-                users = cursor.fetchone()[0] or users
-                
-                cursor.execute("SELECT SUM(visits) FROM web_traffic WHERE date >= ?", (dates[0],))
-                traffic = cursor.fetchone()[0] or traffic
+                historical_data = cursor.fetchall()
             except:
                 pass
             
             conn.close()
     
-    data = {
-        "revenue": revenue,
-        "users": users,
-        "traffic": traffic,
-        "revenueTrends": {"dates": dates, "values": [random.uniform(5000, 20000) for _ in range(request.dateRange)]},
-        "userTrends": {"dates": dates, "values": [random.randint(50, 200) for _ in range(request.dateRange)]},
-        "trafficTrends": {"values": [random.randint(2000, 15000), random.randint(1000, 10000), random.randint(500, 5000)]},
-    }
+    # If no database, generate random trend data
+    if not historical_data:
+        historical_data = [(dates[i], random.uniform(5000, 20000)) for i in range(past_days)]
     
-    return data
+    # Step 2️⃣: Prepare Data for Prediction
+    X = np.array([i for i in range(len(historical_data))]).reshape(-1, 1)  # Day indexes
+    y = np.array([val[1] for val in historical_data])  # Metric values
+
+    # Step 3️⃣: Train AI Model (Linear Regression)
+    model = LinearRegression()
+    model.fit(X, y)
+
+    # Step 4️⃣: Predict Future Values
+    future_X = np.array([len(historical_data) + i for i in range(request.future_days)]).reshape(-1, 1)
+    future_predictions = model.predict(future_X).tolist()
+    
+    future_dates = [(today + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.future_days)]
+
+    return {
+        "category": request.category,
+        "predicted_trends": {
+            "dates": future_dates,
+            "values": future_predictions
+        }
+    }
 
 ### ✅ Run the App ###
 if __name__ == "__main__":
