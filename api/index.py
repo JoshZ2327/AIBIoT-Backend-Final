@@ -44,7 +44,7 @@ twilio_client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
 # Simulated Data
 # ------------------------------
 
-# Simulated IoT Data Storage (if not defined elsewhere)
+# Simulated IoT Data Storage
 iot_data = [
     {"timestamp": datetime.datetime.utcnow().isoformat(), "sensor": "temperature", "value": 22.5},
     {"timestamp": datetime.datetime.utcnow().isoformat(), "sensor": "humidity", "value": 55},
@@ -89,7 +89,7 @@ def predict_trends(request: PredictionRequest):
     past_days = 60  # Use last 60 days for training data
     dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
 
-    # Simulate historical data for demonstration purposes.
+    # Simulated historical data for demonstration purposes.
     historical_data = [(dates[i], random.uniform(5000, 20000)) for i in range(past_days)]
 
     # Prepare data arrays
