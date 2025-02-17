@@ -44,12 +44,17 @@ twilio_client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
 # Simulated Data
 # ------------------------------
 
-# Simulated IoT Data Storage
+# Simulated IoT Data Storage (if not defined elsewhere)
 iot_data = [
     {"timestamp": datetime.datetime.utcnow().isoformat(), "sensor": "temperature", "value": 22.5},
     {"timestamp": datetime.datetime.utcnow().isoformat(), "sensor": "humidity", "value": 55},
     {"timestamp": datetime.datetime.utcnow().isoformat(), "sensor": "pressure", "value": 1012}
 ]
+
+# Endpoint to return the latest IoT sensor data
+@app.get("/latest-iot-data")
+def get_latest_iot_data():
+    return {"latest_reading": iot_data[-1]}
 
 # ------------------------------
 # Request Models
@@ -76,12 +81,6 @@ class DataSourceRequest(BaseModel):
 # Endpoints
 # ------------------------------
 
-# Endpoint: Return Latest IoT Sensor Data (Simulated)
-@app.get("/latest-iot-data")
-def get_latest_iot_data():
-    # Return the last entry from the simulated IoT data list.
-    return {"latest_reading": iot_data[-1]}
-
 # Enhanced AI-Powered Predictive Analytics
 @app.post("/predict-trends")
 def predict_trends(request: PredictionRequest):
@@ -90,7 +89,7 @@ def predict_trends(request: PredictionRequest):
     past_days = 60  # Use last 60 days for training data
     dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
 
-    # Simulated historical data for demonstration purposes.
+    # Simulate historical data for demonstration purposes.
     historical_data = [(dates[i], random.uniform(5000, 20000)) for i in range(past_days)]
 
     # Prepare data arrays
@@ -162,7 +161,6 @@ def check_alerts():
     metrics = predict_trends(PredictionRequest(category="revenue", future_days=7, model="linear_regression"))
     alerts = []
     
-    # Example alert conditions based on predicted revenue
     if metrics["predicted_trends"]["values"][-1] < 50000:
         alert_msg = "⚠️ ALERT: Revenue is predicted to drop below $50,000!"
         send_sms_alert(alert_msg)
