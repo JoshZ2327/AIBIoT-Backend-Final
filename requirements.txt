@@ -1,6 +1,9 @@
 fastapi
 uvicorn
-pydantic
-sqlite3
-pandas
 openai
+pandas
+numpy
+scikit-learn
+statsmodels
+twilio
+sendgrid
