@@ -40,7 +40,20 @@ ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
 # Initialize Twilio Client
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
 
+# ------------------------------
+# Simulated Data
+# ------------------------------
+
+# Simulated IoT Data Storage
+iot_data = [
+    {"timestamp": datetime.datetime.utcnow().isoformat(), "sensor": "temperature", "value": 22.5},
+    {"timestamp": datetime.datetime.utcnow().isoformat(), "sensor": "humidity", "value": 55},
+    {"timestamp": datetime.datetime.utcnow().isoformat(), "sensor": "pressure", "value": 1012}
+]
+
+# ------------------------------
 # Request Models
+# ------------------------------
 class PredictionRequest(BaseModel):
     category: str  # 'revenue', 'users', 'traffic'
     future_days: int  # Forecast period (1-90 days)
@@ -60,24 +73,24 @@ class DataSourceRequest(BaseModel):
     path: str  # File path, database URI, or API URL
 
 # ------------------------------
-# Existing Endpoints (Simulated Data)
+# Endpoints
 # ------------------------------
 
-# (Assuming other endpoints such as /latest-iot-data, /iot-history, etc., are defined elsewhere)
-# For brevity, only the enhanced endpoints are shown below.
+# Endpoint: Return Latest IoT Sensor Data (Simulated)
+@app.get("/latest-iot-data")
+def get_latest_iot_data():
+    # Return the last entry from the simulated IoT data list.
+    return {"latest_reading": iot_data[-1]}
 
-# ------------------------------
 # Enhanced AI-Powered Predictive Analytics
-# ------------------------------
 @app.post("/predict-trends")
 def predict_trends(request: PredictionRequest):
     """Predicts future trends for revenue, users, or traffic using AI models (Linear Regression, ARIMA)."""
-
     today = datetime.date.today()
     past_days = 60  # Use last 60 days for training data
     dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
 
-    # Simulate historical data for demonstration
+    # Simulated historical data for demonstration purposes.
     historical_data = [(dates[i], random.uniform(5000, 20000)) for i in range(past_days)]
 
     # Prepare data arrays
@@ -97,7 +110,7 @@ def predict_trends(request: PredictionRequest):
     else:
         raise HTTPException(status_code=400, detail="Invalid model selection. Choose 'linear_regression' or 'arima'.")
 
-    # Compute confidence intervals using standard deviation of historical data
+    # Compute confidence intervals based on standard deviation of historical data
     std_dev = np.std(y)
     lower_bounds = [max(0, pred - (1.96 * std_dev)) for pred in future_predictions]
     upper_bounds = [pred + (1.96 * std_dev) for pred in future_predictions]
@@ -115,9 +128,7 @@ def predict_trends(request: PredictionRequest):
         }
     }
 
-# ------------------------------
 # AI-Powered Alerts & Notifications
-# ------------------------------
 def send_sms_alert(message):
     """Send an SMS alert using Twilio."""
     try:
@@ -148,8 +159,6 @@ def send_email_alert(subject, content):
 @app.post("/check-alerts")
 def check_alerts():
     """Check real-time metrics and send alerts if thresholds are exceeded."""
-    
-    # For demo purposes, we call the predict-trends endpoint to simulate future revenue prediction
     metrics = predict_trends(PredictionRequest(category="revenue", future_days=7, model="linear_regression"))
     alerts = []
     
@@ -167,16 +176,13 @@ def check_alerts():
 
     return {"alerts_sent": alerts}
 
-# ------------------------------
 # AI-Powered Data Source Connection
-# ------------------------------
 @app.post("/connect-data-source")
 def connect_data_source(request: DataSourceRequest):
     """Allows users to connect SQL databases, CSV files, APIs, or IoT devices."""
     supported_types = ["sqlite", "csv", "api", "iot"]
     if request.type not in supported_types:
         raise HTTPException(status_code=400, detail=f"Unsupported data source type. Choose from {supported_types}")
-
     return {"message": f"Data source '{request.name}' of type '{request.type}' connected successfully"}
 
 # ------------------------------
