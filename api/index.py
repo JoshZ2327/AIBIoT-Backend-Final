@@ -2,22 +2,23 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import datetime
 import random
-import openai
-import sqlite3
-import pandas as pd
 import os
 import numpy as np
+import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import IsolationForest
 from statsmodels.tsa.arima.model import ARIMA
+from fbprophet import Prophet  # New: Facebook Prophet for better forecasting
 from fastapi.middleware.cors import CORSMiddleware
 from twilio.rest import Client
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
+import openai
+import sqlite3
 
 app = FastAPI()
 
-# Enable CORS for frontend integration
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,108 +29,157 @@ app.add_middleware(
 
 # AI & Notification Configurations
 openai.api_key = os.getenv("OPENAI_API_KEY")
-
 TWILIO_SID = os.getenv("TWILIO_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 ADMIN_PHONE_NUMBER = os.getenv("ADMIN_PHONE_NUMBER")
-
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
 
-# Initialize Twilio Client
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
 
-# ------------------------------
-# Simulated Data
-# ------------------------------
+# ---------------------------------------
+# Database Setup
+# ---------------------------------------
+DATABASE = "iot_data.db"
 
-# Simulated IoT Data Storage
-iot_data = [
-    {"timestamp": datetime.datetime.utcnow().isoformat(), "sensor": "temperature", "value": 22.5},
-    {"timestamp": datetime.datetime.utcnow().isoformat(), "sensor": "humidity", "value": 55},
-    {"timestamp": datetime.datetime.utcnow().isoformat(), "sensor": "pressure", "value": 1012}
-]
+def init_db():
+    """Initialize the database."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
 
-# Endpoint to return the latest IoT sensor data
-@app.get("/latest-iot-data")
-def get_latest_iot_data():
-    return {"latest_reading": iot_data[-1]}
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS iot_sensors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            sensor TEXT,
+            value REAL
+        )
+    """)
 
-# ------------------------------
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS business_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            category TEXT,
+            value REAL
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# ---------------------------------------
 # Request Models
-# ------------------------------
+# ---------------------------------------
 class PredictionRequest(BaseModel):
     category: str  # 'revenue', 'users', 'traffic'
-    future_days: int  # Forecast period (1-90 days)
-    model: str = "linear_regression"  # 'linear_regression' or 'arima'
-
-class AnomalyDetectionRequest(BaseModel):
-    category: str
-    values: list
+    future_days: int
+    model: str = "linear_regression"
 
 class RecommendationRequest(BaseModel):
     category: str
     predicted_values: list
 
-class DataSourceRequest(BaseModel):
-    name: str
-    type: str  # 'sqlite', 'csv', 'api', 'iot'
-    path: str  # File path, database URI, or API URL
+class IoTData(BaseModel):
+    sensor: str
+    value: float
 
-# ------------------------------
-# Endpoints
-# ------------------------------
+# ---------------------------------------
+# IoT Data Management
+# ---------------------------------------
+@app.post("/store-iot-data")
+def store_iot_data(data: IoTData):
+    """Store real-time IoT sensor data in the database."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
 
-# Enhanced AI-Powered Predictive Analytics
+    timestamp = datetime.datetime.utcnow().isoformat()
+    cursor.execute("INSERT INTO iot_sensors (timestamp, sensor, value) VALUES (?, ?, ?)",
+                   (timestamp, data.sensor, data.value))
+
+    conn.commit()
+    conn.close()
+    return {"message": f"Stored {data.sensor} data: {data.value}"}
+
+@app.get("/latest-iot-data")
+def get_latest_iot_data():
+    """Retrieve the latest IoT data from the database."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT sensor, value FROM iot_sensors ORDER BY timestamp DESC LIMIT 1")
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return {"sensor": row[0], "value": row[1]}
+    return {"error": "No IoT data available"}
+
+# ---------------------------------------
+# Predictive Analytics (Better Models)
+# ---------------------------------------
 @app.post("/predict-trends")
 def predict_trends(request: PredictionRequest):
-    """Predicts future trends for revenue, users, or traffic using AI models (Linear Regression, ARIMA)."""
+    """Predict future trends using enhanced AI models."""
     today = datetime.date.today()
-    past_days = 60  # Use last 60 days for training data
+    past_days = 60
     dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
 
-    # Simulated historical data for demonstration purposes.
     historical_data = [(dates[i], random.uniform(5000, 20000)) for i in range(past_days)]
-
-    # Prepare data arrays
     X = np.array([i for i in range(len(historical_data))]).reshape(-1, 1)
     y = np.array([val[1] for val in historical_data])
 
-    # Choose forecasting model based on user selection
     if request.model == "linear_regression":
         model = LinearRegression()
         model.fit(X, y)
         future_X = np.array([len(historical_data) + i for i in range(request.future_days)]).reshape(-1, 1)
         future_predictions = model.predict(future_X).tolist()
+    
     elif request.model == "arima":
         model = ARIMA(y, order=(5,1,0))
         fitted_model = model.fit()
         future_predictions = fitted_model.forecast(steps=request.future_days).tolist()
+    
+    elif request.model == "prophet":
+        df = pd.DataFrame({"ds": dates, "y": y})
+        prophet_model = Prophet()
+        prophet_model.fit(df)
+        future_df = pd.DataFrame({"ds": [(today + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.future_days)]})
+        forecast = prophet_model.predict(future_df)
+        future_predictions = forecast["yhat"].tolist()
+    
     else:
-        raise HTTPException(status_code=400, detail="Invalid model selection. Choose 'linear_regression' or 'arima'.")
+        raise HTTPException(status_code=400, detail="Invalid model selection")
 
-    # Compute confidence intervals based on standard deviation of historical data
-    std_dev = np.std(y)
-    lower_bounds = [max(0, pred - (1.96 * std_dev)) for pred in future_predictions]
-    upper_bounds = [pred + (1.96 * std_dev) for pred in future_predictions]
+    return {"category": request.category, "predicted_values": future_predictions}
 
-    future_dates = [(today + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.future_days)]
+# ---------------------------------------
+# AI-Generated Business Recommendations
+# ---------------------------------------
+@app.post("/generate-recommendations")
+def generate_recommendations(request: RecommendationRequest):
+    """Use OpenAI to generate business recommendations based on predicted values."""
+    prompt = f"Based on the following predicted values for {request.category}: {request.predicted_values}, what are some strategic business recommendations?"
+    
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=prompt,
+            max_tokens=100
+        )
+        return {"recommendations": response["choices"][0]["text"].strip()}
+    
+    except Exception as e:
+        return {"error": str(e)}
 
-    return {
-        "category": request.category,
-        "model": request.model,
-        "predicted_trends": {
-            "dates": future_dates,
-            "values": future_predictions,
-            "lower_bounds": lower_bounds,
-            "upper_bounds": upper_bounds
-        }
-    }
-
-# AI-Powered Alerts & Notifications
+# ---------------------------------------
+# Alerts & Notifications
+# ---------------------------------------
 def send_sms_alert(message):
-    """Send an SMS alert using Twilio."""
+    """Send an SMS alert."""
     try:
         twilio_client.messages.create(
             body=message,
@@ -157,35 +207,25 @@ def send_email_alert(subject, content):
 
 @app.post("/check-alerts")
 def check_alerts():
-    """Check real-time metrics and send alerts if thresholds are exceeded."""
-    metrics = predict_trends(PredictionRequest(category="revenue", future_days=7, model="linear_regression"))
-    alerts = []
-    
-    if metrics["predicted_trends"]["values"][-1] < 50000:
-        alert_msg = "⚠️ ALERT: Revenue is predicted to drop below $50,000!"
+    """Check for anomalies and send alerts."""
+    anomaly_detector = IsolationForest(n_estimators=100, contamination=0.05)
+    sample_data = np.array([random.uniform(5000, 20000) for _ in range(100)]).reshape(-1, 1)
+    anomaly_detector.fit(sample_data)
+
+    latest_data = random.uniform(5000, 20000)
+    is_anomaly = anomaly_detector.predict([[latest_data]])[0] == -1
+
+    if is_anomaly:
+        alert_msg = f"⚠️ Anomaly detected: {latest_data}"
         send_sms_alert(alert_msg)
-        send_email_alert("Revenue Drop Alert!", f"<p>{alert_msg}</p>")
-        alerts.append(alert_msg)
-    if metrics["predicted_trends"]["values"][-1] > 150000:
-        alert_msg = "🚀 ALERT: Revenue may spike above $150,000!"
-        send_sms_alert(alert_msg)
-        send_email_alert("Revenue Spike Alert!", f"<p>{alert_msg}</p>")
-        alerts.append(alert_msg)
+        send_email_alert("Anomaly Alert!", f"<p>{alert_msg}</p>")
+        return {"alert": alert_msg}
 
-    return {"alerts_sent": alerts}
+    return {"message": "No anomalies detected"}
 
-# AI-Powered Data Source Connection
-@app.post("/connect-data-source")
-def connect_data_source(request: DataSourceRequest):
-    """Allows users to connect SQL databases, CSV files, APIs, or IoT devices."""
-    supported_types = ["sqlite", "csv", "api", "iot"]
-    if request.type not in supported_types:
-        raise HTTPException(status_code=400, detail=f"Unsupported data source type. Choose from {supported_types}")
-    return {"message": f"Data source '{request.name}' of type '{request.type}' connected successfully"}
-
-# ------------------------------
+# ---------------------------------------
 # Run the App
-# ------------------------------
+# ---------------------------------------
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
