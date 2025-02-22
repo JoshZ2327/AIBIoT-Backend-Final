@@ -119,10 +119,80 @@ class AskQuestionRequest(BaseModel):
     question: str
 
 # ---------------------------------------
+# 🚀 Ask Business Questions (AI-Powered Answers)
+# ---------------------------------------
+@app.post("/ask-question")
+def ask_question(data: AskQuestionRequest):
+    """Handles business questions by integrating AI with connected data sources."""
+    
+    question = data.question
+    if not question:
+        raise HTTPException(status_code=400, detail="No question provided")
+
+    # 🔍 1️⃣ Retrieve connected data sources
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, type, path FROM data_sources")
+    sources = cursor.fetchall()
+    conn.close()
+
+    # 🏢 2️⃣ If no data sources exist, fallback to AI-only answer
+    if not sources:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=f"Answer this business question: {question}",
+            max_tokens=100
+        )
+        return {"answer": response["choices"][0]["text"].strip()}
+
+    # 📊 3️⃣ Query each data source (example for SQLite)
+    business_data = []
+    for source in sources:
+        name, data_type, path = source
+        if data_type == "sqlite":
+            try:
+                conn = sqlite3.connect(path)
+                df = pd.read_sql_query("SELECT * FROM business_metrics ORDER BY timestamp DESC LIMIT 10", conn)
+                conn.close()
+                business_data.append(f"Data from {name}:\n{df.to_string()}")
+            except Exception as e:
+                business_data.append(f"Could not query {name}: {str(e)}")
+
+        elif data_type == "csv":
+            try:
+                df = pd.read_csv(path)
+                business_data.append(f"Data from {name}:\n{df.head(10).to_string()}")
+            except Exception as e:
+                business_data.append(f"Could not read {name}: {str(e)}")
+
+        elif data_type == "api":
+            try:
+                response = requests.get(path)
+                business_data.append(f"Data from {name} API:\n{response.text[:500]}")
+            except Exception as e:
+                business_data.append(f"Could not fetch {name}: {str(e)}")
+
+    # 🔗 4️⃣ Combine Business Data with AI Question
+    business_context = "\n\n".join(business_data)
+    prompt = f"Based on the following business data:\n{business_context}\n\nAnswer this question: {question}"
+
+    # 🚀 5️⃣ Generate AI-Powered Answer
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=prompt,
+            max_tokens=200
+        )
+        return {"answer": response["choices"][0]["text"].strip()}
+    
+    except Exception as e:
+        return {"error": str(e)}
+
+# ---------------------------------------
 # 🚀 AI Dashboard: Business Metrics & Predictions
 # ---------------------------------------
 @app.post("/ai-dashboard")
-def ai_dashboard():
+def ai_dashboard(data: dict):
     """Fetch AI-powered business metrics."""
     return {
         "revenue": round(random.uniform(50000, 150000), 2),
@@ -164,25 +234,6 @@ def predict_trends(request: PredictionRequest):
         raise HTTPException(status_code=400, detail="Invalid model selection")
 
     return {"category": request.category, "predicted_values": future_predictions}
-
-# ---------------------------------------
-# 🚀 AI-Powered Business Recommendations
-# ---------------------------------------
-@app.post("/generate-recommendations")
-def generate_recommendations(request: RecommendationRequest):
-    """Use AI to generate business recommendations based on predicted trends."""
-    prompt = f"Based on the predicted values for {request.category}: {request.predicted_values}, what are the best business decisions to make?"
-
-    try:
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=prompt,
-            max_tokens=150
-        )
-        return {"recommendations": response["choices"][0]["text"].strip()}
-    
-    except Exception as e:
-        return {"error": str(e)}
 
 # ---------------------------------------
 # 🚀 AI Alerts & Notifications (Every 5 min)
