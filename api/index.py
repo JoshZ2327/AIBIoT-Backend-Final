@@ -22,6 +22,7 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 import openai
 import sqlite3
+import requests
 
 app = FastAPI()
 
@@ -145,48 +146,36 @@ def ask_question(data: AskQuestionRequest):
         )
         return {"answer": response["choices"][0]["text"].strip()}
 
-    # 📊 3️⃣ Query each data source (example for SQLite)
+    # 📊 3️⃣ Query each data source (example for SQLite, CSV, API)
     business_data = []
     for source in sources:
         name, data_type, path = source
-        if data_type == "sqlite":
-            try:
+        try:
+            if data_type == "sqlite":
                 conn = sqlite3.connect(path)
                 df = pd.read_sql_query("SELECT * FROM business_metrics ORDER BY timestamp DESC LIMIT 10", conn)
                 conn.close()
                 business_data.append(f"Data from {name}:\n{df.to_string()}")
-            except Exception as e:
-                business_data.append(f"Could not query {name}: {str(e)}")
-
-        elif data_type == "csv":
-            try:
+            elif data_type == "csv":
                 df = pd.read_csv(path)
                 business_data.append(f"Data from {name}:\n{df.head(10).to_string()}")
-            except Exception as e:
-                business_data.append(f"Could not read {name}: {str(e)}")
-
-        elif data_type == "api":
-            try:
+            elif data_type == "api":
                 response = requests.get(path)
                 business_data.append(f"Data from {name} API:\n{response.text[:500]}")
-            except Exception as e:
-                business_data.append(f"Could not fetch {name}: {str(e)}")
+        except Exception as e:
+            business_data.append(f"Could not retrieve data from {name}: {str(e)}")
 
     # 🔗 4️⃣ Combine Business Data with AI Question
     business_context = "\n\n".join(business_data)
     prompt = f"Based on the following business data:\n{business_context}\n\nAnswer this question: {question}"
 
     # 🚀 5️⃣ Generate AI-Powered Answer
-    try:
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=prompt,
-            max_tokens=200
-        )
-        return {"answer": response["choices"][0]["text"].strip()}
-    
-    except Exception as e:
-        return {"error": str(e)}
+    response = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=prompt,
+        max_tokens=200
+    )
+    return {"answer": response["choices"][0]["text"].strip()}
 
 # ---------------------------------------
 # 🚀 AI Dashboard: Business Metrics & Predictions
@@ -211,27 +200,16 @@ def predict_trends(request: PredictionRequest):
     X = np.array([i for i in range(len(historical_data))]).reshape(-1, 1)
     y = np.array([val[1] for val in historical_data])
 
-    if request.model == "linear_regression":
-        model = LinearRegression()
-        model.fit(X, y)
-        future_X = np.array([len(historical_data) + i for i in range(request.future_days)]).reshape(-1, 1)
-        future_predictions = model.predict(future_X).tolist()
-    
-    elif request.model == "arima":
-        model = ARIMA(y, order=(5,1,0))
-        fitted_model = model.fit()
-        future_predictions = fitted_model.forecast(steps=request.future_days).tolist()
-    
-    elif request.model == "prophet":
-        df = pd.DataFrame({"ds": dates, "y": y})
-        prophet_model = Prophet()
-        prophet_model.fit(df)
-        future_df = pd.DataFrame({"ds": [(today + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.future_days)]})
-        forecast = prophet_model.predict(future_df)
-        future_predictions = forecast["yhat"].tolist()
-    
-    else:
+    model = {"linear_regression": LinearRegression(),
+             "arima": ARIMA(y, order=(5,1,0)),
+             "prophet": Prophet()}.get(request.model)
+
+    if not model:
         raise HTTPException(status_code=400, detail="Invalid model selection")
+
+    model.fit(X, y)
+    future_X = np.array([len(historical_data) + i for i in range(request.future_days)]).reshape(-1, 1)
+    future_predictions = model.predict(future_X).tolist()
 
     return {"category": request.category, "predicted_values": future_predictions}
 
@@ -241,21 +219,14 @@ def predict_trends(request: PredictionRequest):
 async def scheduled_ai_alerts():
     """Run AI trend detection every 5 minutes & send email alerts."""
     while True:
-        print(f"🔄 Running AI trend detection at {datetime.datetime.utcnow()}...")
-
-        # 🚀 Load Cloud Data
         new_data = pd.read_csv(CLOUD_STORAGE_PATH)
-
-        # 📊 Run AI Forecasting
         predictions = new_data.mean(axis=0).to_dict()
 
-        # 🚨 Detect Major Trend Shifts
         if check_significant_trends(predictions):
             summary = generate_summary(predictions)
             chart_path = generate_visual_chart(predictions)
             send_email_alert("🚨 Significant Business Trend Shift!", summary, chart_path)
 
-        print(f"✅ AI trend analysis complete! Next run in 5 minutes.")
         await asyncio.sleep(300)
 
 @app.on_event("startup")
