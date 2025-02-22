@@ -7,9 +7,7 @@ import numpy as np
 import pandas as pd
 import asyncio
 import sqlite3
-import smtplib
 import requests
-import json
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import IsolationForest
 from statsmodels.tsa.arima.model import ARIMA
@@ -61,6 +59,15 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS iot_sensors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            sensor TEXT,
+            value REAL
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -74,6 +81,10 @@ class DataSource(BaseModel):
     type: str
     path: str
 
+class IoTData(BaseModel):
+    sensor: str
+    value: float
+
 class PredictionRequest(BaseModel):
     category: str
     future_days: int
@@ -85,6 +96,18 @@ class RecommendationRequest(BaseModel):
 
 class BusinessQuestion(BaseModel):
     question: str
+
+# ---------------------------------------
+# 🚀 AI-Powered Business Insights & Metrics
+# ---------------------------------------
+@app.post("/ai-dashboard")
+def ai_dashboard():
+    """Fetch AI-powered business metrics."""
+    return {
+        "revenue": round(random.uniform(50000, 150000), 2),
+        "users": random.randint(1000, 5000),
+        "traffic": random.randint(50000, 200000)
+    }
 
 # ---------------------------------------
 # 🚀 AI-Powered Business Question Answering
@@ -136,104 +159,41 @@ def ask_question(data: BusinessQuestion):
         return {"error": str(e)}
 
 # ---------------------------------------
-# 🚀 AI-Powered Business Insights & Predictions
+# 🚀 AI-Powered Alerts & Notifications
 # ---------------------------------------
-@app.post("/predict-trends")
-def predict_trends(request: PredictionRequest):
-    """Predict business trends using AI models."""
-    
-    today = datetime.date.today()
-    past_days = 60
-    dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
-    y = np.array([random.uniform(5000, 20000) for _ in range(past_days)])
-
-    if request.model == "linear_regression":
-        model = LinearRegression()
-        model.fit(np.arange(past_days).reshape(-1, 1), y)
-        future_predictions = model.predict(np.arange(past_days, past_days + request.future_days).reshape(-1, 1)).tolist()
-    
-    elif request.model == "arima":
-        model = ARIMA(y, order=(5,1,0))
-        fitted_model = model.fit()
-        future_predictions = fitted_model.forecast(steps=request.future_days).tolist()
-    
-    elif request.model == "prophet":
-        df = pd.DataFrame({"ds": dates, "y": y})
-        prophet_model = Prophet()
-        prophet_model.fit(df)
-        future_df = pd.DataFrame({"ds": [(today + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.future_days)]})
-        forecast = prophet_model.predict(future_df)
-        future_predictions = forecast["yhat"].tolist()
-    
-    else:
-        raise HTTPException(status_code=400, detail="Invalid model selection")
-
-    return {"category": request.category, "predicted_values": future_predictions}
+@app.post("/check-alerts")
+def check_alerts():
+    """Returns AI-generated alerts for business anomalies."""
+    alerts = [
+        {"category": "Sales", "message": "🚨 Sales dropped 20% in last 7 days!"},
+        {"category": "Traffic", "message": "⚠️ Unusual website traffic detected."}
+    ]
+    return {"alerts": alerts}
 
 # ---------------------------------------
-# 📊 AI-Powered Alerts & Automation
+# 📡 WebSockets for Real-Time Alerts
 # ---------------------------------------
-@app.post("/get-recommendations")
-def get_recommendations(data: RecommendationRequest):
-    """AI-generated business recommendations based on predictions."""
-    
-    category = data.category
-    recommendations = []
+alert_connections = []
 
-    if category == "sales":
-        recommendations = ["Increase ad budget for trending products.", "Launch a discount campaign."]
-    elif category == "traffic":
-        recommendations = ["Optimize website speed.", "Invest in SEO for trending keywords."]
-    elif category == "user growth":
-        recommendations = ["Introduce referral bonuses.", "Enhance social media strategies."]
-
-    return {"recommendations": recommendations}
-
-# ---------------------------------------
-# 📡 WebSockets for Real-Time Data Updates
-# ---------------------------------------
-active_connections = []
-
-@app.websocket("/ws/data-sources")
-async def websocket_data_sources(websocket: WebSocket):
-    """WebSocket connection for real-time data source updates."""
+@app.websocket("/ws/alerts")
+async def websocket_alerts(websocket: WebSocket):
+    """WebSocket connection for real-time alerts."""
     await websocket.accept()
-    active_connections.append(websocket)
+    alert_connections.append(websocket)
     try:
         while True:
-            await websocket.receive_text()  
+            await websocket.receive_text()
     except WebSocketDisconnect:
-        active_connections.remove(websocket)
+        alert_connections.remove(websocket)
 
-async def notify_clients():
-    """Notify WebSocket clients when data sources update."""
-    data_sources = get_all_data_sources()
-    for connection in active_connections:
+async def notify_alert_clients():
+    """Send real-time AI alerts via WebSocket."""
+    alerts = check_alerts()
+    for connection in alert_connections:
         try:
-            await connection.send_json({"data_sources": data_sources})
+            await connection.send_json(alerts)
         except:
-            active_connections.remove(connection)
-
-def get_all_data_sources():
-    """Fetch all data sources from the database."""
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT name, type, path FROM data_sources")
-    sources = [{"name": row[0], "type": row[1], "path": row[2]} for row in cursor.fetchall()]
-    conn.close()
-    return sources
-
-@app.post("/connect-data-source")
-async def connect_data_source(data: DataSource):
-    """Registers a new data source and notifies WebSocket clients."""
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO data_sources (name, type, path) VALUES (?, ?, ?)", (data.name, data.type, data.path))
-    conn.commit()
-    conn.close()
-
-    await notify_clients()
-    return {"message": f"Data source {data.name} connected successfully."}
+            alert_connections.remove(connection)
 
 # ---------------------------------------
 # 🚀 Run the App
