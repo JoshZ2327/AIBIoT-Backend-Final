@@ -273,7 +273,7 @@ def get_latest_iot_data():
     conn.close()
 
     if not data:
-        return {"latest_reading": "No IoT data available."}
+        return {"latest_reading": None}  # ✅ Ensure a valid response
 
     return {
         "latest_reading": {
