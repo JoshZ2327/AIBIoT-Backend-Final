@@ -261,7 +261,42 @@ async def scheduled_ai_alerts():
 @app.on_event("startup")
 async def start_background_tasks():
     asyncio.create_task(scheduled_ai_alerts())
+# 🚀 New Endpoints for IoT Data, Alerts, and Data Sources
 
+@app.get("/latest-iot-data")
+def get_latest_iot_data():
+    """Returns the latest IoT sensor data"""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM iot_sensors ORDER BY timestamp DESC LIMIT 1")
+    data = cursor.fetchone()
+    conn.close()
+
+    if not data:
+        return {"latest_reading": "No IoT data available."}
+
+    return {
+        "latest_reading": {
+            "timestamp": data[1],
+            "sensor": data[2],
+            "value": data[3]
+        }
+    }
+
+@app.post("/check-alerts")
+def check_alerts():
+    """Returns AI-generated alerts"""
+    return {"alerts_sent": ["Example alert: Temperature anomaly detected."]}
+
+@app.post("/connect-data-source")
+def connect_data_source(data: DataSource):
+    """Registers a new data source"""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO data_sources (name, type, path) VALUES (?, ?, ?)", (data.name, data.type, data.path))
+    conn.commit()
+    conn.close()
+    return {"message": f"Data source {data.name} connected successfully."}
 # ---------------------------------------
 # 🚀 Run the App
 # ---------------------------------------
