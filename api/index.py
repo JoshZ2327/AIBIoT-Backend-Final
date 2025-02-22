@@ -297,6 +297,16 @@ def connect_data_source(data: DataSource):
     conn.commit()
     conn.close()
     return {"message": f"Data source {data.name} connected successfully."}
+
+@app.get("/list-data-sources")
+def list_data_sources():
+    """Returns all registered data sources"""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, type, path FROM data_sources")
+    sources = [{"name": row[0], "type": row[1], "path": row[2]} for row in cursor.fetchall()]
+    conn.close()
+    return {"sources": sources}
     
 # ---------------------------------------
 # 🚀 Run the App
