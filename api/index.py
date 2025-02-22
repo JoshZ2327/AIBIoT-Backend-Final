@@ -19,7 +19,7 @@ import openai
 
 app = FastAPI()
 
-# 🌍 Enable CORS
+# 🌍 Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  
@@ -194,6 +194,41 @@ async def notify_alert_clients():
             await connection.send_json(alerts)
         except:
             alert_connections.remove(connection)
+
+# ---------------------------------------
+# 🚀 AI-Powered Predictive Analytics
+# ---------------------------------------
+@app.post("/predict-trends")
+def predict_trends(request: PredictionRequest):
+    """Predict business trends using AI models."""
+    
+    today = datetime.date.today()
+    past_days = 60
+    dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
+    y = np.array([random.uniform(5000, 20000) for _ in range(past_days)])
+
+    if request.model == "linear_regression":
+        model = LinearRegression()
+        model.fit(np.arange(past_days).reshape(-1, 1), y)
+        future_predictions = model.predict(np.arange(past_days, past_days + request.future_days).reshape(-1, 1)).tolist()
+    
+    elif request.model == "arima":
+        model = ARIMA(y, order=(5,1,0))
+        fitted_model = model.fit()
+        future_predictions = fitted_model.forecast(steps=request.future_days).tolist()
+    
+    elif request.model == "prophet":
+        df = pd.DataFrame({"ds": dates, "y": y})
+        prophet_model = Prophet()
+        prophet_model.fit(df)
+        future_df = pd.DataFrame({"ds": [(today + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.future_days)]})
+        forecast = prophet_model.predict(future_df)
+        future_predictions = forecast["yhat"].tolist()
+    
+    else:
+        raise HTTPException(status_code=400, detail="Invalid model selection")
+
+    return {"category": request.category, "predicted_values": future_predictions}
 
 # ---------------------------------------
 # 🚀 Run the App
