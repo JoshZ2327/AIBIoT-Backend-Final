@@ -254,6 +254,57 @@ def connect_data_source(data: dict):
         raise HTTPException(status_code=400, detail="Missing required fields")
 
     return {"message": f"Connected {name} ({data_type}) at {path}"}
+
+ @app.post("/detect-anomalies")
+def detect_anomalies(data: dict):
+    """Detect anomalies using Isolation Forest AI model."""
+    category = data.get("category")
+    if not category:
+        raise HTTPException(status_code=400, detail="Category is required")
+
+    # Simulated anomaly detection logic
+    sample_data = np.array([random.uniform(5000, 20000) for _ in range(100)]).reshape(-1, 1)
+    anomaly_detector = IsolationForest(n_estimators=100, contamination=0.05)
+    anomaly_detector.fit(sample_data)
+
+    latest_value = random.uniform(5000, 20000)
+    is_anomaly = anomaly_detector.predict([[latest_value]])[0] == -1
+    anomaly_score = random.uniform(0, 1)  # Simulating anomaly confidence score
+
+    return {
+        "anomalies": [
+            {
+                "value": latest_value,
+                "score": anomaly_score,
+                "is_anomaly": is_anomaly
+            }
+        ]
+    }
+
+
+@app.post("/ai-dashboard")
+def ai_dashboard(data: dict):
+    """Fetch AI-powered business metrics."""
+    date_range = data.get("dateRange", 30)
+    category = data.get("category", "all")
+
+    return {
+        "revenue": round(random.uniform(50000, 150000), 2),
+        "users": random.randint(1000, 5000),
+        "traffic": random.randint(50000, 200000),
+        "revenueTrends": {
+            "dates": [f"Day {i}" for i in range(date_range)],
+            "values": [round(random.uniform(5000, 15000), 2) for _ in range(date_range)]
+        },
+        "userTrends": {
+            "dates": [f"Day {i}" for i in range(date_range)],
+            "values": [random.randint(100, 500) for _ in range(date_range)]
+        },
+        "trafficTrends": {
+            "dates": [f"Day {i}" for i in range(date_range)],
+            "values": [random.randint(5000, 20000) for _ in range(date_range)]
+        }
+    }
     
 # ---------------------------------------
 # Run the App
