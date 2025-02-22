@@ -123,21 +123,68 @@ class AskQuestionRequest(BaseModel):
 # ---------------------------------------
 @app.post("/ask-question")
 def ask_question(data: AskQuestionRequest):
-    """Handles business questions and generates AI-powered answers."""
+    """Handles business questions by integrating AI with connected data sources."""
+    
     question = data.question
-
     if not question:
         raise HTTPException(status_code=400, detail="No question provided")
 
-    try:
+    # 🔍 1️⃣ Retrieve connected data sources
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, type, path FROM data_sources")
+    sources = cursor.fetchall()
+    conn.close()
+
+    # 🏢 2️⃣ If no data sources exist, fallback to AI-only answer
+    if not sources:
         response = openai.Completion.create(
             engine="text-davinci-003",
             prompt=f"Answer this business question: {question}",
             max_tokens=100
         )
-        answer = response["choices"][0]["text"].strip()
-        return {"answer": answer}
+        return {"answer": response["choices"][0]["text"].strip()}
 
+    # 📊 3️⃣ Query each data source (example for SQLite)
+    business_data = []
+    for source in sources:
+        name, data_type, path = source
+        if data_type == "sqlite":
+            try:
+                conn = sqlite3.connect(path)
+                df = pd.read_sql_query("SELECT * FROM business_metrics ORDER BY timestamp DESC LIMIT 10", conn)
+                conn.close()
+                business_data.append(f"Data from {name}:\n{df.to_string()}")
+            except Exception as e:
+                business_data.append(f"Could not query {name}: {str(e)}")
+
+        elif data_type == "csv":
+            try:
+                df = pd.read_csv(path)
+                business_data.append(f"Data from {name}:\n{df.head(10).to_string()}")
+            except Exception as e:
+                business_data.append(f"Could not read {name}: {str(e)}")
+
+        elif data_type == "api":
+            try:
+                response = requests.get(path)
+                business_data.append(f"Data from {name} API:\n{response.text[:500]}")
+            except Exception as e:
+                business_data.append(f"Could not fetch {name}: {str(e)}")
+
+    # 🔗 4️⃣ Combine Business Data with AI Question
+    business_context = "\n\n".join(business_data)
+    prompt = f"Based on the following business data:\n{business_context}\n\nAnswer this question: {question}"
+
+    # 🚀 5️⃣ Generate AI-Powered Answer
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=prompt,
+            max_tokens=200
+        )
+        return {"answer": response["choices"][0]["text"].strip()}
+    
     except Exception as e:
         return {"error": str(e)}
 
