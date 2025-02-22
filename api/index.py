@@ -313,6 +313,31 @@ def detect_anomalies(request: PredictionRequest):
     """Returns detected anomalies"""
     anomalies = [{"value": random.uniform(50, 200), "score": random.uniform(0.5, 1.0), "is_anomaly": True}]
     return {"anomalies": anomalies}  # ✅ Always return an array
+
+@app.post("/get-recommendations")
+def get_recommendations(data: RecommendationRequest):
+    """Returns AI-generated business recommendations."""
+    category = data.category
+    recommendations = []
+
+    # Example AI logic: Generate recommendations based on trends
+    if category == "sales":
+        recommendations = [
+            "Increase ad budget for trending products.",
+            "Launch a discount campaign based on demand predictions."
+        ]
+    elif category == "traffic":
+        recommendations = [
+            "Optimize website speed to reduce bounce rate.",
+            "Invest in SEO for keywords related to recent trends."
+        ]
+    elif category == "user growth":
+        recommendations = [
+            "Introduce referral bonuses for new sign-ups.",
+            "Enhance social media engagement strategies."
+        ]
+    
+    return {"recommendations": recommendations}
     
 # ---------------------------------------
 # 🚀 Run the App
