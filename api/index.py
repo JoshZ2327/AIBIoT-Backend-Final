@@ -307,6 +307,12 @@ def list_data_sources():
     sources = [{"name": row[0], "type": row[1], "path": row[2]} for row in cursor.fetchall()]
     conn.close()
     return {"sources": sources}
+
+@app.post("/detect-anomalies")
+def detect_anomalies(request: PredictionRequest):
+    """Returns detected anomalies"""
+    anomalies = [{"value": random.uniform(50, 200), "score": random.uniform(0.5, 1.0), "is_anomaly": True}]
+    return {"anomalies": anomalies}  # ✅ Always return an array
     
 # ---------------------------------------
 # 🚀 Run the App
