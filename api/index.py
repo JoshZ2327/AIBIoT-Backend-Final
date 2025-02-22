@@ -338,6 +338,68 @@ def get_recommendations(data: RecommendationRequest):
         ]
     
     return {"recommendations": recommendations}
+
+from fastapi.websockets import WebSocket, WebSocketDisconnect
+
+# 📡 Store Active WebSocket Connections
+active_connections = []
+
+@app.websocket("/ws/data-sources")
+async def websocket_data_sources(websocket: WebSocket):
+    """WebSocket connection for real-time data source updates."""
+    await websocket.accept()
+    active_connections.append(websocket)
+    try:
+        while True:
+            await websocket.receive_text()  # Keep connection alive
+    except WebSocketDisconnect:
+        active_connections.remove(websocket)
+
+async def notify_clients():
+    """Notify all WebSocket clients when data sources are updated."""
+    data_sources = get_all_data_sources()
+    for connection in active_connections:
+        try:
+            await connection.send_json({"data_sources": data_sources})
+        except:
+            active_connections.remove(connection)
+
+def get_all_data_sources():
+    """Retrieve all data sources from the database."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, type, path FROM data_sources")
+    sources = [{"name": row[0], "type": row[1], "path": row[2]} for row in cursor.fetchall()]
+    conn.close()
+    return sources
+
+@app.post("/connect-data-source")
+async def connect_data_source(data: DataSource):
+    """Registers a new data source and notifies WebSocket clients."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO data_sources (name, type, path) VALUES (?, ?, ?)", (data.name, data.type, data.path))
+    conn.commit()
+    conn.close()
+
+    # Notify WebSocket clients
+    await notify_clients()
+
+    return {"message": f"Data source {data.name} connected successfully."}
+
+@app.delete("/delete-data-source/{name}")
+async def delete_data_source(name: str):
+    """Deletes a data source and notifies WebSocket clients."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM data_sources WHERE name = ?", (name,))
+    conn.commit()
+    conn.close()
+
+    # Notify WebSocket clients
+    await notify_clients()
+
+    return {"message": f"Data source {name} deleted successfully."}
     
 # ---------------------------------------
 # 🚀 Run the App
