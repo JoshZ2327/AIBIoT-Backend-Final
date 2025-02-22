@@ -119,42 +119,42 @@ def get_latest_iot_data():
     return {"error": "No IoT data available"}
 
 # ---------------------------------------
-# Predictive Analytics (Better Models)
+# Business Question AI Answering
 # ---------------------------------------
-@app.post("/predict-trends")
-def predict_trends(request: PredictionRequest):
-    """Predict future trends using enhanced AI models."""
-    today = datetime.date.today()
-    past_days = 60
-    dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
+@app.post("/ask-question")
+def ask_question(data: dict):
+    """Handles business questions and generates AI-powered answers."""
+    question = data.get("question", "")
 
-    historical_data = [(dates[i], random.uniform(5000, 20000)) for i in range(past_days)]
-    X = np.array([i for i in range(len(historical_data))]).reshape(-1, 1)
-    y = np.array([val[1] for val in historical_data])
+    if not question:
+        raise HTTPException(status_code=400, detail="No question provided")
 
-    if request.model == "linear_regression":
-        model = LinearRegression()
-        model.fit(X, y)
-        future_X = np.array([len(historical_data) + i for i in range(request.future_days)]).reshape(-1, 1)
-        future_predictions = model.predict(future_X).tolist()
-    
-    elif request.model == "arima":
-        model = ARIMA(y, order=(5,1,0))
-        fitted_model = model.fit()
-        future_predictions = fitted_model.forecast(steps=request.future_days).tolist()
-    
-    elif request.model == "prophet":
-        df = pd.DataFrame({"ds": dates, "y": y})
-        prophet_model = Prophet()
-        prophet_model.fit(df)
-        future_df = pd.DataFrame({"ds": [(today + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.future_days)]})
-        forecast = prophet_model.predict(future_df)
-        future_predictions = forecast["yhat"].tolist()
-    
-    else:
-        raise HTTPException(status_code=400, detail="Invalid model selection")
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=f"Answer this business question: {question}",
+            max_tokens=100
+        )
+        answer = response["choices"][0]["text"].strip()
+        return {"answer": answer}
 
-    return {"category": request.category, "predicted_values": future_predictions}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ---------------------------------------
+# Business Data Connection
+# ---------------------------------------
+@app.post("/connect-data-source")
+def connect_data_source(data: dict):
+    """Simulates connecting a business data source."""
+    name = data.get("name")
+    data_type = data.get("type")
+    path = data.get("path")
+
+    if not all([name, data_type, path]):
+        raise HTTPException(status_code=400, detail="Missing required fields")
+
+    return {"message": f"Connected {name} ({data_type}) at {path}"}
 
 # ---------------------------------------
 # AI-Generated Business Recommendations
@@ -176,86 +176,9 @@ def generate_recommendations(request: RecommendationRequest):
         return {"error": str(e)}
 
 # ---------------------------------------
-# Alerts & Notifications
+# AI-Powered Anomaly Detection
 # ---------------------------------------
-def send_sms_alert(message):
-    """Send an SMS alert."""
-    try:
-        twilio_client.messages.create(
-            body=message,
-            from_=TWILIO_PHONE_NUMBER,
-            to=ADMIN_PHONE_NUMBER
-        )
-        return {"message": "SMS Alert Sent!"}
-    except Exception as e:
-        return {"error": str(e)}
-
-def send_email_alert(subject, content):
-    """Send an email alert using SendGrid."""
-    try:
-        message = Mail(
-            from_email="alerts@aibiot.com",
-            to_emails=ADMIN_EMAIL,
-            subject=subject,
-            html_content=content
-        )
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        sg.send(message)
-        return {"message": "Email Alert Sent!"}
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.post("/check-alerts")
-def check_alerts():
-    """Check for anomalies and send alerts."""
-    anomaly_detector = IsolationForest(n_estimators=100, contamination=0.05)
-    sample_data = np.array([random.uniform(5000, 20000) for _ in range(100)]).reshape(-1, 1)
-    anomaly_detector.fit(sample_data)
-
-    latest_data = random.uniform(5000, 20000)
-    is_anomaly = anomaly_detector.predict([[latest_data]])[0] == -1
-
-    if is_anomaly:
-        alert_msg = f"⚠️ Anomaly detected: {latest_data}"
-        send_sms_alert(alert_msg)
-        send_email_alert("Anomaly Alert!", f"<p>{alert_msg}</p>")
-        return {"alert": alert_msg}
-
-    return {"message": "No anomalies detected"}
-
-    @app.post("/ask-question")
-def ask_question(data: dict):
-    """Handles business questions and generates AI-powered answers."""
-    question = data.get("question", "")
-
-    if not question:
-        raise HTTPException(status_code=400, detail="No question provided")
-
-    try:
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=f"Answer this business question: {question}",
-            max_tokens=100
-        )
-        answer = response["choices"][0]["text"].strip()
-        return {"answer": answer}
-
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.post("/connect-data-source")
-def connect_data_source(data: dict):
-    """Simulates connecting a business data source."""
-    name = data.get("name")
-    data_type = data.get("type")
-    path = data.get("path")
-
-    if not all([name, data_type, path]):
-        raise HTTPException(status_code=400, detail="Missing required fields")
-
-    return {"message": f"Connected {name} ({data_type}) at {path}"}
-
- @app.post("/detect-anomalies")
+@app.post("/detect-anomalies")
 def detect_anomalies(data: dict):
     """Detect anomalies using Isolation Forest AI model."""
     category = data.get("category")
@@ -281,31 +204,18 @@ def detect_anomalies(data: dict):
         ]
     }
 
-
+# ---------------------------------------
+# AI Dashboard Data Endpoint
+# ---------------------------------------
 @app.post("/ai-dashboard")
 def ai_dashboard(data: dict):
     """Fetch AI-powered business metrics."""
-    date_range = data.get("dateRange", 30)
-    category = data.get("category", "all")
-
     return {
         "revenue": round(random.uniform(50000, 150000), 2),
         "users": random.randint(1000, 5000),
-        "traffic": random.randint(50000, 200000),
-        "revenueTrends": {
-            "dates": [f"Day {i}" for i in range(date_range)],
-            "values": [round(random.uniform(5000, 15000), 2) for _ in range(date_range)]
-        },
-        "userTrends": {
-            "dates": [f"Day {i}" for i in range(date_range)],
-            "values": [random.randint(100, 500) for _ in range(date_range)]
-        },
-        "trafficTrends": {
-            "dates": [f"Day {i}" for i in range(date_range)],
-            "values": [random.randint(5000, 20000) for _ in range(date_range)]
-        }
+        "traffic": random.randint(50000, 200000)
     }
-    
+
 # ---------------------------------------
 # Run the App
 # ---------------------------------------
