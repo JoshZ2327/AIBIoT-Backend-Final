@@ -28,10 +28,10 @@ app = FastAPI()
 # 🌍 Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[https://www.maverickaisoftware.com],  # ✅ Replace with your frontend domain
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 # 🔑 AI & Notification Configurations
