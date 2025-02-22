@@ -5,10 +5,17 @@ import random
 import os
 import numpy as np
 import pandas as pd
+import asyncio
+import smtplib
+import matplotlib.pyplot as plt
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import IsolationForest
 from statsmodels.tsa.arima.model import ARIMA
-from fbprophet import Prophet  # New: Facebook Prophet for better forecasting
+from fbprophet import Prophet
 from fastapi.middleware.cors import CORSMiddleware
 from twilio.rest import Client
 from sendgrid import SendGridAPIClient
@@ -18,7 +25,7 @@ import sqlite3
 
 app = FastAPI()
 
-# Enable CORS
+# 🌍 Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,7 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# AI & Notification Configurations
+# 🔑 AI & Notification Configurations
 openai.api_key = os.getenv("OPENAI_API_KEY")
 TWILIO_SID = os.getenv("TWILIO_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
@@ -36,10 +43,17 @@ ADMIN_PHONE_NUMBER = os.getenv("ADMIN_PHONE_NUMBER")
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
 
-twilio_client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
+SMTP_SERVER = "smtp.your-email.com"
+SMTP_PORT = 587
+SMTP_USERNAME = "your-email@example.com"
+SMTP_PASSWORD = "your-password"
+ALERT_RECIPIENTS = ["admin@example.com", "team@example.com"]
+
+# 📊 Cloud Storage Simulation
+CLOUD_STORAGE_PATH = "data/business_data.csv"
 
 # ---------------------------------------
-# Database Setup
+# 📀 Database Setup
 # ---------------------------------------
 DATABASE = "iot_data.db"
 
@@ -66,6 +80,15 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS data_sources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            type TEXT,
+            path TEXT
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -75,7 +98,7 @@ init_db()
 # Request Models
 # ---------------------------------------
 class PredictionRequest(BaseModel):
-    category: str  # 'revenue', 'users', 'traffic'
+    category: str
     future_days: int
     model: str = "linear_regression"
 
@@ -87,44 +110,21 @@ class IoTData(BaseModel):
     sensor: str
     value: float
 
-# ---------------------------------------
-# IoT Data Management
-# ---------------------------------------
-@app.post("/store-iot-data")
-def store_iot_data(data: IoTData):
-    """Store real-time IoT sensor data in the database."""
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
+class DataSource(BaseModel):
+    name: str
+    type: str
+    path: str
 
-    timestamp = datetime.datetime.utcnow().isoformat()
-    cursor.execute("INSERT INTO iot_sensors (timestamp, sensor, value) VALUES (?, ?, ?)",
-                   (timestamp, data.sensor, data.value))
-
-    conn.commit()
-    conn.close()
-    return {"message": f"Stored {data.sensor} data: {data.value}"}
-
-@app.get("/latest-iot-data")
-def get_latest_iot_data():
-    """Retrieve the latest IoT data from the database."""
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT sensor, value FROM iot_sensors ORDER BY timestamp DESC LIMIT 1")
-    row = cursor.fetchone()
-    conn.close()
-
-    if row:
-        return {"sensor": row[0], "value": row[1]}
-    return {"error": "No IoT data available"}
+class AskQuestionRequest(BaseModel):
+    question: str
 
 # ---------------------------------------
-# Business Question AI Answering
+# 🚀 Ask Business Questions (AI-Powered Answers)
 # ---------------------------------------
 @app.post("/ask-question")
-def ask_question(data: dict):
+def ask_question(data: AskQuestionRequest):
     """Handles business questions and generates AI-powered answers."""
-    question = data.get("question", "")
+    question = data.question
 
     if not question:
         raise HTTPException(status_code=400, detail="No question provided")
@@ -142,70 +142,7 @@ def ask_question(data: dict):
         return {"error": str(e)}
 
 # ---------------------------------------
-# Business Data Connection
-# ---------------------------------------
-@app.post("/connect-data-source")
-def connect_data_source(data: dict):
-    """Simulates connecting a business data source."""
-    name = data.get("name")
-    data_type = data.get("type")
-    path = data.get("path")
-
-    if not all([name, data_type, path]):
-        raise HTTPException(status_code=400, detail="Missing required fields")
-
-    return {"message": f"Connected {name} ({data_type}) at {path}"}
-
-# ---------------------------------------
-# AI-Generated Business Recommendations
-# ---------------------------------------
-@app.post("/generate-recommendations")
-def generate_recommendations(request: RecommendationRequest):
-    """Use OpenAI to generate business recommendations based on predicted values."""
-    prompt = f"Based on the following predicted values for {request.category}: {request.predicted_values}, what are some strategic business recommendations?"
-    
-    try:
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=prompt,
-            max_tokens=100
-        )
-        return {"recommendations": response["choices"][0]["text"].strip()}
-    
-    except Exception as e:
-        return {"error": str(e)}
-
-# ---------------------------------------
-# AI-Powered Anomaly Detection
-# ---------------------------------------
-@app.post("/detect-anomalies")
-def detect_anomalies(data: dict):
-    """Detect anomalies using Isolation Forest AI model."""
-    category = data.get("category")
-    if not category:
-        raise HTTPException(status_code=400, detail="Category is required")
-
-    # Simulated anomaly detection logic
-    sample_data = np.array([random.uniform(5000, 20000) for _ in range(100)]).reshape(-1, 1)
-    anomaly_detector = IsolationForest(n_estimators=100, contamination=0.05)
-    anomaly_detector.fit(sample_data)
-
-    latest_value = random.uniform(5000, 20000)
-    is_anomaly = anomaly_detector.predict([[latest_value]])[0] == -1
-    anomaly_score = random.uniform(0, 1)  # Simulating anomaly confidence score
-
-    return {
-        "anomalies": [
-            {
-                "value": latest_value,
-                "score": anomaly_score,
-                "is_anomaly": is_anomaly
-            }
-        ]
-    }
-
-# ---------------------------------------
-# AI Dashboard Data Endpoint
+# 🚀 AI Dashboard: Business Metrics & Predictions
 # ---------------------------------------
 @app.post("/ai-dashboard")
 def ai_dashboard(data: dict):
@@ -216,8 +153,70 @@ def ai_dashboard(data: dict):
         "traffic": random.randint(50000, 200000)
     }
 
+@app.post("/predict-trends")
+def predict_trends(request: PredictionRequest):
+    """Predict future trends using AI models."""
+    today = datetime.date.today()
+    past_days = 60
+    dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
+
+    historical_data = [(dates[i], random.uniform(5000, 20000)) for i in range(past_days)]
+    X = np.array([i for i in range(len(historical_data))]).reshape(-1, 1)
+    y = np.array([val[1] for val in historical_data])
+
+    if request.model == "linear_regression":
+        model = LinearRegression()
+        model.fit(X, y)
+        future_X = np.array([len(historical_data) + i for i in range(request.future_days)]).reshape(-1, 1)
+        future_predictions = model.predict(future_X).tolist()
+    
+    elif request.model == "arima":
+        model = ARIMA(y, order=(5,1,0))
+        fitted_model = model.fit()
+        future_predictions = fitted_model.forecast(steps=request.future_days).tolist()
+    
+    elif request.model == "prophet":
+        df = pd.DataFrame({"ds": dates, "y": y})
+        prophet_model = Prophet()
+        prophet_model.fit(df)
+        future_df = pd.DataFrame({"ds": [(today + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.future_days)]})
+        forecast = prophet_model.predict(future_df)
+        future_predictions = forecast["yhat"].tolist()
+    
+    else:
+        raise HTTPException(status_code=400, detail="Invalid model selection")
+
+    return {"category": request.category, "predicted_values": future_predictions}
+
 # ---------------------------------------
-# Run the App
+# 🚀 AI Alerts & Notifications (Every 5 min)
+# ---------------------------------------
+async def scheduled_ai_alerts():
+    """Run AI trend detection every 5 minutes & send email alerts."""
+    while True:
+        print(f"🔄 Running AI trend detection at {datetime.datetime.utcnow()}...")
+
+        # 🚀 Load Cloud Data
+        new_data = pd.read_csv(CLOUD_STORAGE_PATH)
+
+        # 📊 Run AI Forecasting
+        predictions = new_data.mean(axis=0).to_dict()
+
+        # 🚨 Detect Major Trend Shifts
+        if check_significant_trends(predictions):
+            summary = generate_summary(predictions)
+            chart_path = generate_visual_chart(predictions)
+            send_email_alert("🚨 Significant Business Trend Shift!", summary, chart_path)
+
+        print(f"✅ AI trend analysis complete! Next run in 5 minutes.")
+        await asyncio.sleep(300)
+
+@app.on_event("startup")
+async def start_background_tasks():
+    asyncio.create_task(scheduled_ai_alerts())
+
+# ---------------------------------------
+# 🚀 Run the App
 # ---------------------------------------
 if __name__ == "__main__":
     import uvicorn
