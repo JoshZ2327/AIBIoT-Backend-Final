@@ -223,6 +223,38 @@ def check_alerts():
 
     return {"message": "No anomalies detected"}
 
+    @app.post("/ask-question")
+def ask_question(data: dict):
+    """Handles business questions and generates AI-powered answers."""
+    question = data.get("question", "")
+
+    if not question:
+        raise HTTPException(status_code=400, detail="No question provided")
+
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=f"Answer this business question: {question}",
+            max_tokens=100
+        )
+        answer = response["choices"][0]["text"].strip()
+        return {"answer": answer}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/connect-data-source")
+def connect_data_source(data: dict):
+    """Simulates connecting a business data source."""
+    name = data.get("name")
+    data_type = data.get("type")
+    path = data.get("path")
+
+    if not all([name, data_type, path]):
+        raise HTTPException(status_code=400, detail="Missing required fields")
+
+    return {"message": f"Connected {name} ({data_type}) at {path}"}
+    
 # ---------------------------------------
 # Run the App
 # ---------------------------------------
