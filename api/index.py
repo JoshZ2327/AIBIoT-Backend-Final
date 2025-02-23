@@ -103,12 +103,46 @@ class BusinessQuestion(BaseModel):
 # ---------------------------------------
 @app.post("/ai-dashboard")
 def ai_dashboard():
-    """Fetch AI-powered business metrics."""
-    return {
-        "revenue": round(random.uniform(50000, 150000), 2),
-        "users": random.randint(1000, 5000),
-        "traffic": random.randint(50000, 200000)
-    }
+    """Fetch AI-powered business metrics from multiple sources."""
+
+    metrics = {}
+
+    # ✅ Fetch Metrics from SQLite
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT category, value FROM business_metrics ORDER BY timestamp DESC LIMIT 3")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    for row in rows:
+        metrics[row[0]] = row[1]
+
+    # ✅ Fetch Metrics from MySQL
+    try:
+        import mysql.connector
+        conn = mysql.connector.connect(host="your-host", user="your-user", password="your-pass", database="your-db")
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT category, value FROM business_metrics ORDER BY timestamp DESC LIMIT 3")
+        rows = cursor.fetchall()
+        for row in rows:
+            metrics[row["category"]] = row["value"]
+        conn.close()
+    except Exception as e:
+        print(f"MySQL Error: {e}")
+
+    # ✅ Fetch Metrics from MongoDB
+    try:
+        from pymongo import MongoClient
+        client = MongoClient("mongodb+srv://your-mongodb-url")
+        db = client["your-db"]
+        collection = db["business_metrics"]
+        documents = collection.find().limit(3)
+        for doc in documents:
+            metrics[doc["category"]] = doc["value"]
+    except Exception as e:
+        print(f"MongoDB Error: {e}")
+
+    return metrics
 
 # ---------------------------------------
 # 🚀 AI-Powered Business Question Answering
