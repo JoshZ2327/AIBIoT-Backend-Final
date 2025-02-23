@@ -446,12 +446,21 @@ async def websocket_iot(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            latest_iot_data = fetch_latest_iot_data()  
+            latest_iot_data = fetch_latest_iot_data()
             await websocket.send_json(latest_iot_data)
             await asyncio.sleep(5)  # Send updates every 5 seconds
     except WebSocketDisconnect:
         print("❌ IoT WebSocket Disconnected")
-        
+
+@app.get("/fetch-anomalies")
+def fetch_anomalies():
+    """Fetch all detected anomalies."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT timestamp, sensor, value, anomaly_score, status FROM iot_anomalies ORDER BY timestamp DESC LIMIT 50")
+    anomalies = [{"timestamp": row[0], "sensor": row[1], "value": row[2], "anomaly_score": row[3], "status": row[4]} for row in cursor.fetchall()]
+    conn.close()
+    return {"anomalies": anomalies}
 # ---------------------------------------
 # 🚀 AI-Powered Predictive Analytics
 # ---------------------------------------
