@@ -285,7 +285,29 @@ async def schedule_storage_optimization():
     while True:
         move_old_data_to_cold_storage()
         await asyncio.sleep(86400)  # Run once per day (every 24 hours)
-        
+
+# ---------------------------------------
+# 🚀 AI-Powered Batch Processing for Cost Efficiency
+# ---------------------------------------
+
+async def batch_process_ai_tasks(tasks):
+    """Groups AI queries into batches instead of running them one by one."""
+    batch_size = 5  # Process 5 queries at a time to reduce API costs
+    for i in range(0, len(tasks), batch_size):
+        batch = tasks[i : i + batch_size]
+        await asyncio.gather(*[run_ai_task(task) for task in batch])
+
+async def run_ai_task(task):
+    """Executes an AI processing task."""
+    response = openai.Completion.create(engine="text-davinci-003", prompt=task, max_tokens=200)
+    return response["choices"][0]["text"].strip()
+
+@app.post("/batch-process-questions")
+async def batch_process_questions(questions: list):
+    """Receives multiple questions and processes them in a batch."""
+    await batch_process_ai_tasks(questions)
+    return {"message": "Batch processing started"}
+
 # ---------------------------------------
 # 🚀 Run the App
 # ---------------------------------------
