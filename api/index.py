@@ -112,36 +112,44 @@ def ai_dashboard():
 # ---------------------------------------
 # 🚀 AI-Powered Business Question Answering
 # ---------------------------------------
+CACHE = {}  # Global cache for frequently asked questions
+
 def choose_best_cloud_provider():
-    """Dynamically choose the cheapest cloud AI provider"""
+    """Dynamically choose the cheapest cloud AI provider."""
     provider_costs = {
         "OpenAI": 0.02,  # Cost per 1,000 tokens (example)
         "AWS Bedrock": 0.015,
         "Google Vertex AI": 0.018
     }
-    return min(provider_costs, key=provider_costs.get)  # Choose cheapest
+    return min(provider_costs, key=provider_costs.get)  # Choose the lowest-cost provider
 
 @app.post("/ask-question")
 def ask_question(data: BusinessQuestion):
-    """AI-powered business Q&A with cloud cost optimization."""
+    """AI-powered business Q&A with cloud cost optimization and caching."""
 
     question = data.question
     if not question:
         raise HTTPException(status_code=400, detail="No question provided.")
 
-    best_provider = choose_best_cloud_provider()  # Select lowest-cost AI API
+    # ✅ Step 1: Check cache to avoid redundant AI costs
+    if question in CACHE:
+        return {"answer": CACHE[question]}  # Return cached answer ✅
+
+    # ✅ Step 2: Choose the lowest-cost AI provider dynamically
+    best_provider = choose_best_cloud_provider()
 
     if best_provider == "OpenAI":
         response = openai.Completion.create(engine="text-davinci-003", prompt=question, max_tokens=200)
         answer = response["choices"][0]["text"].strip()
-
     elif best_provider == "AWS Bedrock":
-        aws_response = requests.post("https://aws-bedrock-endpoint", json={"text": question})
-        answer = aws_response.json().get("answer", "No response from AWS.")
+        response = requests.post("https://aws-bedrock-endpoint", json={"text": question})
+        answer = response.json().get("answer", "No answer available.")
+    else:
+        response = requests.post("https://google-vertex-ai-endpoint", json={"text": question})
+        answer = response.json().get("answer", "No answer available.")
 
-    else:  # Google Vertex AI
-        google_response = requests.post("https://google-vertex-ai-endpoint", json={"text": question})
-        answer = google_response.json().get("answer", "No response from Google.")
+    # ✅ Step 3: Store the result in cache to save costs
+    CACHE[question] = answer  
 
     return {"answer": answer}
     
