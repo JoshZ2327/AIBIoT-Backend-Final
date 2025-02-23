@@ -253,15 +253,23 @@ def predict_trends(request: PredictionRequest):
 # 🚀 AI-Powered Batch Processing
 # ---------------------------------------
 async def run_ai_task(task):
-    """Executes an AI processing task with optimized AI selection."""
+    """Executes an AI processing task with optimized AI selection and error handling."""
     best_provider = choose_best_cloud_provider()
 
-    if best_provider == "OpenAI":
-        response = openai.Completion.create(engine="text-davinci-003", prompt=task, max_tokens=200)
-        return response["choices"][0]["text"].strip()
-    else:
-        response = requests.post(f"https://{best_provider.lower()}-endpoint", json={"text": task})
-        return response.json().get("answer", "No answer available.")
+    try:
+        if best_provider == "OpenAI":
+            response = openai.Completion.create(engine="text-davinci-003", prompt=task, max_tokens=200)
+            return response["choices"][0]["text"].strip()
+        elif best_provider == "AWS Bedrock":
+            response = requests.post("https://aws-bedrock-endpoint", json={"text": task})
+            return response.json().get("answer", "No answer available.")
+        elif best_provider == "Google Vertex AI":
+            response = requests.post("https://google-vertex-ai-endpoint", json={"text": task})
+            return response.json().get("answer", "No answer available.")
+        else:
+            return "No AI provider available."
+    except Exception as e:
+        return f"Error processing AI request: {str(e)}"
 
 async def batch_process_ai_tasks(tasks):
     """Batch AI queries instead of running them one by one."""
@@ -298,10 +306,14 @@ def move_old_data_to_cold_storage():
 
 @app.on_event("startup")
 async def schedule_storage_optimization():
-    """Move old data to cold storage daily."""
+    """Starts the background storage optimization loop."""
+    asyncio.create_task(storage_loop())
+
+async def storage_loop():
+    """Runs the data storage optimization process once per day."""
     while True:
         move_old_data_to_cold_storage()
-        await asyncio.sleep(86400)
+        await asyncio.sleep(86400)  # Run every 24 hours
 
 # ---------------------------------------
 # 🚀 Run the App
