@@ -222,21 +222,28 @@ def predict_trends(request: PredictionRequest):
 
     today = datetime.date.today()
     past_days = 60
+    dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(past_days)][::-1]
     y = np.array([random.uniform(5000, 20000) for _ in range(past_days)])
 
+    # **Dynamic Model Selection for Cost Efficiency**
     if request.future_days <= 7:
         model = LinearRegression()
         model.fit(np.arange(past_days).reshape(-1, 1), y)
         future_predictions = model.predict(np.arange(past_days, past_days + request.future_days).reshape(-1, 1)).tolist()
+
     elif request.future_days <= 30:
         model = ARIMA(y, order=(5,1,0))
         fitted_model = model.fit()
         future_predictions = fitted_model.forecast(steps=request.future_days).tolist()
-    else:
-        df = pd.DataFrame({"ds": [str(today - datetime.timedelta(days=i)) for i in range(past_days)], "y": y})
+
+    else:  # Long-term predictions → Prophet (Higher cost)
+        df = pd.DataFrame({"ds": dates, "y": y})
         prophet_model = Prophet()
         prophet_model.fit(df)
-        future_df = pd.DataFrame({"ds": [str(today + datetime.timedelta(days=i)) for i in range(request.future_days)]})
+
+        # ✅ FIXED future_df assignment
+        future_df = pd.DataFrame({"ds": [today + datetime.timedelta(days=i) for i in range(request.future_days)]})
+
         forecast = prophet_model.predict(future_df)
         future_predictions = forecast["yhat"].tolist()
 
