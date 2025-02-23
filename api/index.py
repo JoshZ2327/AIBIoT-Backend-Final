@@ -126,24 +126,21 @@ def choose_best_cloud_provider():
 
 @app.post("/ask-question")
 def ask_question(data: BusinessQuestion):
-    """AI-powered Q&A with real-time business data integration, caching, and cost optimization."""
+    """AI-powered Q&A with real-time business data from multiple sources, including APIs and IoT sensors."""
 
     question = data.question
     if not question:
         raise HTTPException(status_code=400, detail="No question provided.")
 
-    # ✅ Step 1: Check cache to avoid redundant AI costs
-    if question in CACHE:
-        return {"answer": CACHE[question]}  # Return cached answer ✅
-
-    # 🔍 Step 2: Retrieve Business Data
+    business_data = []
+    
+    # ✅ Fetch Data from SQLite
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
     cursor.execute("SELECT name, type, path FROM data_sources")
     sources = cursor.fetchall()
     conn.close()
 
-    business_data = []
     for name, data_type, path in sources:
         if data_type == "sqlite":
             try:
@@ -151,29 +148,99 @@ def ask_question(data: BusinessQuestion):
                 df = pd.read_sql_query("SELECT * FROM business_metrics ORDER BY timestamp DESC LIMIT 10", conn)
                 conn.close()
                 business_data.append(f"Data from {name}:\n{df.to_string()}")
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"SQLite Error: {e}")
 
+        elif data_type == "csv":
+            try:
+                df = pd.read_csv(path)
+                business_data.append(f"Data from {name}:\n{df.head(10).to_string()}")
+            except Exception as e:
+                print(f"CSV Error: {e}")
+
+        elif data_type == "mysql":
+            try:
+                import mysql.connector
+                conn = mysql.connector.connect(host="your-host", user="your-user", password="your-pass", database="your-db")
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute("SELECT * FROM business_metrics ORDER BY timestamp DESC LIMIT 10")
+                rows = cursor.fetchall()
+                business_data.append(f"MySQL Data from {name}:\n{rows}")
+                conn.close()
+            except Exception as e:
+                print(f"MySQL Error: {e}")
+
+        elif data_type == "mongodb":
+            try:
+                from pymongo import MongoClient
+                client = MongoClient("mongodb+srv://your-mongodb-url")
+                db = client["your-db"]
+                collection = db["business_metrics"]
+                documents = collection.find().limit(10)
+                business_data.append(f"MongoDB Data from {name}:\n{list(documents)}")
+            except Exception as e:
+                print(f"MongoDB Error: {e}")
+
+    # ✅ Fetch IoT Data from MQTT Broker
+    try:
+        import paho.mqtt.client as mqtt
+
+        def on_message(client, userdata, msg):
+            business_data.append(f"IoT Sensor Data: {msg.topic} - {msg.payload.decode()}")
+
+        mqtt_client = mqtt.Client()
+        mqtt_client.on_message = on_message
+        mqtt_client.connect("mqtt-broker-url", 1883, 60)
+        mqtt_client.subscribe("iot/sensors/temperature")
+        mqtt_client.loop_start()
+        asyncio.sleep(2)  # Wait for messages
+        mqtt_client.loop_stop()
+    except Exception as e:
+        print(f"IoT MQTT Error: {e}")
+
+    # ✅ Fetch IoT Data from Firebase
+    try:
+        import firebase_admin
+        from firebase_admin import credentials, db
+
+        cred = credentials.Certificate("path-to-firebase-credentials.json")
+        firebase_admin.initialize_app(cred, {"databaseURL": "https://your-firebase-url.firebaseio.com/"})
+
+        ref = db.reference("/iot_sensors")
+        iot_data = ref.order_by_child("timestamp").limit_to_last(5).get()
+
+        if iot_data:
+            business_data.append(f"Firebase IoT Data:\n{iot_data}")
+    except Exception as e:
+        print(f"Firebase IoT Error: {e}")
+
+    # ✅ Fetch Data from External APIs
+    api_endpoints = [
+        "https://api.example.com/business-metrics",
+        "https://api.example.com/user-analytics",
+        "https://api.example.com/market-trends"
+    ]
+
+    for url in api_endpoints:
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                business_data.append(f"API Data from {url}:\n{response.json()}")
+            else:
+                print(f"API Error: {url} - Status {response.status_code}")
+        except Exception as e:
+            print(f"API Request Failed: {url} - {e}")
+
+    # ✅ Use AI to Generate Business Insights
     business_context = "\n\n".join(business_data)
     prompt = f"Using this data:\n{business_context}\n\nAnswer: {question}"
 
-    # ✅ Step 3: Choose the lowest-cost AI provider dynamically
-    best_provider = choose_best_cloud_provider()
-    
-    if best_provider == "OpenAI":
+    # ✅ Choose the Lowest-Cost AI Provider
+    try:
         response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=200)
         answer = response["choices"][0]["text"].strip()
-    elif best_provider == "AWS Bedrock":
-        response = requests.post("https://aws-bedrock-endpoint", json={"text": prompt})
-        answer = response.json().get("answer", "No answer available.")
-    elif best_provider == "Google Vertex AI":
-        response = requests.post("https://google-vertex-ai-endpoint", json={"text": prompt})
-        answer = response.json().get("answer", "No answer available.")
-    else:
-        answer = "No suitable AI provider found."
-
-    # ✅ Step 4: Store the result in cache to save costs
-    CACHE[question] = answer  
+    except Exception as e:
+        answer = f"Error processing AI request: {str(e)}"
 
     return {"answer": answer}
 
