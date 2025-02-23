@@ -406,13 +406,29 @@ def fetch_data_sources_from_db():
     return sources
 
 def fetch_latest_iot_data():
-    """Fetches the latest IoT sensor data from the database."""
+    """Fetches the latest IoT sensor data and detects anomalies."""
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
     cursor.execute("SELECT timestamp, sensor, value FROM iot_sensors ORDER BY timestamp DESC LIMIT 1")
     row = cursor.fetchone()
     conn.close()
-    return {"timestamp": row[0], "sensor": row[1], "value": row[2]} if row else {}
+
+    if not row:
+        return {}
+
+    latest_data = {"timestamp": row[0], "sensor": row[1], "value": row[2]}
+    
+    # Detect anomalies in real-time
+    anomalies = detect_anomalies(row[1])
+
+    # If anomaly detected, return it as an alert
+    if anomalies:
+        latest_data["anomaly_detected"] = True
+        latest_data["alert_message"] = f"🚨 Anomaly detected in {row[1]}: {row[2]}!"
+    else:
+        latest_data["anomaly_detected"] = False
+
+    return latest_data
     
 @app.websocket("/ws/data-sources")
 async def websocket_data_sources(websocket: WebSocket):
