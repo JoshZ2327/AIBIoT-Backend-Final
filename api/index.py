@@ -161,10 +161,15 @@ def ask_question(data: BusinessQuestion):
     
     if best_provider == "OpenAI":
         response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=200)
+        answer = response["choices"][0]["text"].strip()
+    elif best_provider == "AWS Bedrock":
+        response = requests.post("https://aws-bedrock-endpoint", json={"text": prompt})
+        answer = response.json().get("answer", "No answer available.")
+    elif best_provider == "Google Vertex AI":
+        response = requests.post("https://google-vertex-ai-endpoint", json={"text": prompt})
+        answer = response.json().get("answer", "No answer available.")
     else:
-        response = requests.post(f"https://{best_provider.lower()}-endpoint", json={"text": question})
-
-    answer = response.json().get("answer", "No answer available.")
+        answer = "No suitable AI provider found."
 
     # ✅ Step 4: Store the result in cache to save costs
     CACHE[question] = answer  
