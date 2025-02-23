@@ -99,6 +99,30 @@ class BusinessQuestion(BaseModel):
     question: str
 
 # ---------------------------------------
+# 🚀 API Endpoints for Managing Data Sources
+# ---------------------------------------
+
+@app.get("/list-data-sources")
+def list_data_sources():
+    """Fetch data sources from the database."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, type, path FROM data_sources")
+    sources = [{"name": row[0], "type": row[1], "path": row[2]} for row in cursor.fetchall()]
+    conn.close()
+    return {"sources": sources}
+
+@app.delete("/delete-data-source/{name}")
+def delete_data_source(name: str):
+    """Delete a data source from the database."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM data_sources WHERE name = ?", (name,))
+    conn.commit()
+    conn.close()
+    return {"message": f"Data source {name} deleted successfully."}
+    
+# ---------------------------------------
 # 🚀 AI-Powered Business Insights & Metrics
 # ---------------------------------------
 @app.post("/ai-dashboard")
@@ -289,7 +313,7 @@ def check_alerts():
         {"category": "Traffic", "message": "⚠️ Unusual website traffic detected."}
     ]
     return {"alerts": alerts}
-
+    
 # ---------------------------------------
 # 📡 WebSockets for Real-Time Alerts
 # ---------------------------------------
@@ -315,6 +339,46 @@ async def notify_alert_clients():
         except:
             alert_connections.remove(connection)
 
+def fetch_data_sources_from_db():
+    """Fetches the latest list of data sources from the database."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, type, path FROM data_sources")
+    sources = [{"name": row[0], "type": row[1], "path": row[2]} for row in cursor.fetchall()]
+    conn.close()
+    return sources
+
+def fetch_latest_iot_data():
+    """Fetches the latest IoT sensor data from the database."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT timestamp, sensor, value FROM iot_sensors ORDER BY timestamp DESC LIMIT 1")
+    row = cursor.fetchone()
+    conn.close()
+    return {"timestamp": row[0], "sensor": row[1], "value": row[2]} if row else {}
+    
+@app.websocket("/ws/data-sources")
+async def websocket_data_sources(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = {"type": "update", "data_sources": fetch_data_sources_from_db()}  
+            await websocket.send_json(data)
+            await asyncio.sleep(5)  # Send updates every 5 seconds
+    except WebSocketDisconnect:
+        print("❌ Data Sources WebSocket Disconnected")
+
+@app.websocket("/ws/iot")
+async def websocket_iot(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            latest_iot_data = fetch_latest_iot_data()  
+            await websocket.send_json(latest_iot_data)
+            await asyncio.sleep(5)  # Send updates every 5 seconds
+    except WebSocketDisconnect:
+        print("❌ IoT WebSocket Disconnected")
+        
 # ---------------------------------------
 # 🚀 AI-Powered Predictive Analytics
 # ---------------------------------------
