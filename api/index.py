@@ -252,7 +252,32 @@ def predict_trends(request: PredictionRequest):
         future_predictions = forecast["yhat"].tolist()
 
     return {"category": request.category, "predicted_values": future_predictions}
-    
+
+def move_old_data_to_cold_storage():
+    """Moves older AI results to cheaper cold storage (like S3 or Glacier)."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    # Move data older than 30 days to cold storage
+    cursor.execute("SELECT * FROM business_metrics WHERE timestamp < date('now', '-30 days')")
+    old_data = cursor.fetchall()
+
+    if old_data:
+        # Store in a cold storage bucket (AWS S3, Google Cloud Storage, etc.)
+        requests.post("https://cold-storage-endpoint", json={"data": old_data})
+        cursor.execute("DELETE FROM business_metrics WHERE timestamp < date('now', '-30 days')")  # Delete from live DB
+        conn.commit()
+
+    conn.close()
+
+# 🚀 Background task to optimize storage
+@app.on_event("startup")
+async def schedule_storage_optimization():
+    """Background job to periodically move old data to cold storage."""
+    while True:
+        move_old_data_to_cold_storage()
+        await asyncio.sleep(86400)  # Run once per day (every 24 hours)
+        
 # ---------------------------------------
 # 🚀 Run the App
 # ---------------------------------------
