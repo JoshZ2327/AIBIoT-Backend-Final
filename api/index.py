@@ -89,6 +89,48 @@ def init_db():
 
 init_db()
 
+from sklearn.ensemble import IsolationForest
+import numpy as np
+
+def detect_anomalies(sensor_name: str):
+    """Detect anomalies in IoT sensor data using Isolation Forest."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    
+    # Fetch last 100 readings for the sensor
+    cursor.execute("SELECT timestamp, value FROM iot_sensors WHERE sensor = ? ORDER BY timestamp DESC LIMIT 100", (sensor_name,))
+    data = cursor.fetchall()
+    conn.close()
+    
+    if len(data) < 10:
+        return []  # Not enough data to detect anomalies
+    
+    timestamps, values = zip(*data)
+    values = np.array(values).reshape(-1, 1)  # Reshape for model input
+
+    # Train Isolation Forest Model
+    model = IsolationForest(contamination=0.05, random_state=42)  # Detects 5% of points as anomalies
+    model.fit(values)
+    anomaly_scores = model.decision_function(values)
+    predictions = model.predict(values)
+
+    anomalies = []
+    for i in range(len(predictions)):
+        if predictions[i] == -1:  # -1 indicates an anomaly
+            status = "High" if anomaly_scores[i] < -0.1 else "Medium"
+            anomalies.append({"timestamp": timestamps[i], "sensor": sensor_name, "value": values[i][0], "anomaly_score": anomaly_scores[i], "status": status})
+
+    # Save anomalies to DB
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    for anomaly in anomalies:
+        cursor.execute("INSERT INTO iot_anomalies (timestamp, sensor, value, anomaly_score, status) VALUES (?, ?, ?, ?, ?)", 
+                       (anomaly["timestamp"], anomaly["sensor"], anomaly["value"], anomaly["anomaly_score"], anomaly["status"]))
+    conn.commit()
+    conn.close()
+
+    return anomalies
+    
 # ---------------------------------------
 # 📌 Data Models
 # ---------------------------------------
