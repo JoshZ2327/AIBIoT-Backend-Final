@@ -262,7 +262,39 @@ def move_old_data_to_cold_storage():
         conn.commit()
 
     conn.close()
+    
+# ---------------------------------------
+# 🚀 Data Storage Optimization
+# ---------------------------------------
 
+def move_old_data_to_cold_storage():
+    """Moves older AI results to cheaper cold storage (like S3 or Glacier)."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    # Move data older than 30 days to cold storage
+    cursor.execute("SELECT * FROM business_metrics WHERE timestamp < date('now', '-30 days')")
+    old_data = cursor.fetchall()
+
+    if old_data:
+        # 🚀 Replace this placeholder with your actual cold storage API
+        storage_api_url = os.getenv("COLD_STORAGE_API", "https://secure-storage-service.com/upload")
+        
+        response = requests.post(storage_api_url, json={"data": old_data})
+        
+        if response.status_code == 200:
+            cursor.execute("DELETE FROM business_metrics WHERE timestamp < date('now', '-30 days')")  # Delete from live DB
+            conn.commit()
+
+    conn.close()
+
+# 🚀 Background task to optimize storage
+@app.on_event("startup")
+async def schedule_storage_optimization():
+    """Background job to periodically move old data to cold storage."""
+    while True:
+        move_old_data_to_cold_storage()
+        await asyncio.sleep(86400)  # Run once per day (every 24 hours)
 # 🚀 Background task to optimize storage
 @app.on_event("startup")
 async def schedule_storage_optimization():
