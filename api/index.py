@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import datetime
@@ -11,7 +12,7 @@ import requests
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import IsolationForest
 from statsmodels.tsa.arima.model import ARIMA
-from prophet import Prophet
+from fbprophet import Prophet
 from fastapi.middleware.cors import CORSMiddleware
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -90,26 +91,28 @@ class PredictionRequest(BaseModel):
     future_days: int
     model: str = "linear_regression"
 
+class RecommendationRequest(BaseModel):
+    category: str
+    predicted_values: list
+
 class BusinessQuestion(BaseModel):
     question: str
 
 # ---------------------------------------
 # 🚀 AI-Powered Business Insights & Metrics
 # ---------------------------------------
-
 @app.post("/ai-dashboard")
 def ai_dashboard():
-    """Fetch AI-powered business metrics dynamically."""
+    """Fetch AI-powered business metrics."""
     return {
-        "revenue": round(random.uniform(50000, 150000), 2),  # Simulated revenue data
-        "users": random.randint(1000, 5000),  # Simulated user count
-        "traffic": random.randint(50000, 200000)  # Simulated website traffic
+        "revenue": round(random.uniform(50000, 150000), 2),
+        "users": random.randint(1000, 5000),
+        "traffic": random.randint(50000, 200000)
     }
 
 # ---------------------------------------
 # 🚀 AI-Powered Business Question Answering
 # ---------------------------------------
-
 CACHE = {}  # Global cache for frequently asked questions
 
 def choose_best_cloud_provider():
@@ -173,45 +176,43 @@ def ask_question(data: BusinessQuestion):
     CACHE[question] = answer  
 
     return {"answer": answer}
-    
-# ---------------------------------------
-# 🚀 AI-Powered Alerts & WebSockets
-# ---------------------------------------
-alert_connections = []
 
+# ---------------------------------------
+# 🚀 AI-Powered Alerts & Notifications
+# ---------------------------------------
 @app.post("/check-alerts")
 def check_alerts():
-    """AI-generated alerts for business anomalies."""
+    """Returns AI-generated alerts for business anomalies."""
     alerts = [
         {"category": "Sales", "message": "🚨 Sales dropped 20% in last 7 days!"},
         {"category": "Traffic", "message": "⚠️ Unusual website traffic detected."}
     ]
     return {"alerts": alerts}
 
+# ---------------------------------------
+# 📡 WebSockets for Real-Time Alerts
+# ---------------------------------------
+alert_connections = []
+
 @app.websocket("/ws/alerts")
 async def websocket_alerts(websocket: WebSocket):
-    """WebSocket for real-time alerts."""
+    """WebSocket connection for real-time alerts."""
     await websocket.accept()
     alert_connections.append(websocket)
     try:
         while True:
-            await websocket.receive_text()  # Keep connection open
+            await websocket.receive_text()
     except WebSocketDisconnect:
         alert_connections.remove(websocket)
 
 async def notify_alert_clients():
-    """Broadcast AI-generated alerts."""
+    """Send real-time AI alerts via WebSocket."""
     alerts = check_alerts()
-    disconnected_clients = []
-    
     for connection in alert_connections:
         try:
             await connection.send_json(alerts)
         except:
-            disconnected_clients.append(connection)
-
-    for client in disconnected_clients:
-        alert_connections.remove(client)
+            alert_connections.remove(connection)
 
 # ---------------------------------------
 # 🚀 AI-Powered Predictive Analytics
@@ -226,94 +227,136 @@ def predict_trends(request: PredictionRequest):
     y = np.array([random.uniform(5000, 20000) for _ in range(past_days)])
 
     # **Dynamic Model Selection for Cost Efficiency**
-    if request.future_days <= 7:
+    if request.future_days <= 7:  # Small prediction window → Cheaper model
         model = LinearRegression()
         model.fit(np.arange(past_days).reshape(-1, 1), y)
         future_predictions = model.predict(np.arange(past_days, past_days + request.future_days).reshape(-1, 1)).tolist()
-
-    elif request.future_days <= 30:
+    
+    elif request.future_days <= 30:  # Medium-term → ARIMA
         model = ARIMA(y, order=(5,1,0))
         fitted_model = model.fit()
         future_predictions = fitted_model.forecast(steps=request.future_days).tolist()
-
+    
     else:  # Long-term predictions → Prophet (Higher cost)
         df = pd.DataFrame({"ds": dates, "y": y})
         prophet_model = Prophet()
         prophet_model.fit(df)
-
-        # ✅ FIXED future_df assignment
-        future_df = pd.DataFrame({"ds": [today + datetime.timedelta(days=i) for i in range(request.future_days)]})
-
+        future_df = pd.DataFrame({"ds": [(today + datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(request.future_days)]})
         forecast = prophet_model.predict(future_df)
         future_predictions = forecast["yhat"].tolist()
 
     return {"category": request.category, "predicted_values": future_predictions}
 
+def move_old_data_to_cold_storage():
+    """Moves older AI results to cheaper cold storage (like S3 or Glacier)."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    # Move data older than 30 days to cold storage
+    cursor.execute("SELECT * FROM business_metrics WHERE timestamp < date('now', '-30 days')")
+    old_data = cursor.fetchall()
+
+    if old_data:
+        # Store in a cold storage bucket (AWS S3, Google Cloud Storage, etc.)
+        requests.post("https://cold-storage-endpoint", json={"data": old_data})
+        cursor.execute("DELETE FROM business_metrics WHERE timestamp < date('now', '-30 days')")  # Delete from live DB
+        conn.commit()
+
+    conn.close()
+    
 # ---------------------------------------
-# 🚀 AI-Powered Batch Processing
+# 🚀 Data Storage Optimization
 # ---------------------------------------
+
+def move_old_data_to_cold_storage():
+    """Moves older AI results to cheaper cold storage (like S3 or Glacier)."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    # Move data older than 30 days to cold storage
+    cursor.execute("SELECT * FROM business_metrics WHERE timestamp < date('now', '-30 days')")
+    old_data = cursor.fetchall()
+
+    if old_data:
+        # 🚀 Replace this placeholder with your actual cold storage API
+        storage_api_url = os.getenv("COLD_STORAGE_API", "https://secure-storage-service.com/upload")
+        
+        response = requests.post(storage_api_url, json={"data": old_data})
+        
+        if response.status_code == 200:
+            cursor.execute("DELETE FROM business_metrics WHERE timestamp < date('now', '-30 days')")  # Delete from live DB
+            conn.commit()
+
+    conn.close()
+
+# 🚀 Background task to optimize storage
+@app.on_event("startup")
+async def schedule_storage_optimization():
+    """Background job to periodically move old data to cold storage."""
+    while True:
+        move_old_data_to_cold_storage()
+        await asyncio.sleep(86400)  # Run once per day (every 24 hours)
+# 🚀 Background task to optimize storage
+@app.on_event("startup")
+async def schedule_storage_optimization():
+    """Background job to periodically move old data to cold storage."""
+    while True:
+        move_old_data_to_cold_storage()
+        await asyncio.sleep(86400)  # Run once per day (every 24 hours)
+
+# ---------------------------------------
+# 🚀 AI-Powered Batch Processing for Cost Efficiency
+# ---------------------------------------
+
+# ---------------------------------------
+# 🚀 AI-Powered Batch Processing for Cost Efficiency
+# ---------------------------------------
+
 async def run_ai_task(task):
-    """Executes an AI processing task with optimized AI selection and error handling."""
+    """Executes an AI processing task with optimized AI selection."""
     best_provider = choose_best_cloud_provider()
 
-    try:
-        if best_provider == "OpenAI":
-            response = openai.Completion.create(engine="text-davinci-003", prompt=task, max_tokens=200)
-            return response["choices"][0]["text"].strip()
-        elif best_provider == "AWS Bedrock":
-            response = requests.post("https://aws-bedrock-endpoint", json={"text": task})
-            return response.json().get("answer", "No answer available.")
-        elif best_provider == "Google Vertex AI":
-            response = requests.post("https://google-vertex-ai-endpoint", json={"text": task})
-            return response.json().get("answer", "No answer available.")
-        else:
-            return "No AI provider available."
-    except Exception as e:
-        return f"Error processing AI request: {str(e)}"
+    if best_provider == "OpenAI":
+        response = openai.Completion.create(engine="text-davinci-003", prompt=task, max_tokens=200)
+        return response["choices"][0]["text"].strip()
+    elif best_provider == "AWS Bedrock":
+        response = requests.post("https://aws-bedrock-endpoint", json={"text": task})
+        return response.json().get("answer", "No answer available.")
+    elif best_provider == "Google Vertex AI":
+        response = requests.post("https://google-vertex-ai-endpoint", json={"text": task})
+        return response.json().get("answer", "No answer available.")
+    else:
+        return "No AI provider available."
 
 async def batch_process_ai_tasks(tasks):
-    """Batch AI queries instead of running them one by one."""
-    batch_size = 5
+    """Groups AI queries into batches instead of running them one by one."""
+    batch_size = 5  # Process 5 queries at a time to reduce API costs
     for i in range(0, len(tasks), batch_size):
         batch = tasks[i : i + batch_size]
         await asyncio.gather(*[run_ai_task(task) for task in batch])
 
 @app.post("/batch-process-questions")
 async def batch_process_questions(questions: list):
-    """Processes multiple AI questions in a batch."""
+    """Receives multiple questions and processes them in a batch."""
     await batch_process_ai_tasks(questions)
     return {"message": "Batch processing started"}
+async def batch_process_ai_tasks(tasks):
+    """Groups AI queries into batches instead of running them one by one."""
+    batch_size = 5  # Process 5 queries at a time to reduce API costs
+    for i in range(0, len(tasks), batch_size):
+        batch = tasks[i : i + batch_size]
+        await asyncio.gather(*[run_ai_task(task) for task in batch])
 
-# ---------------------------------------
-# 🚀 Data Storage Optimization
-# ---------------------------------------
-def move_old_data_to_cold_storage():
-    """Moves older AI results to cheaper cold storage."""
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
+async def run_ai_task(task):
+    """Executes an AI processing task."""
+    response = openai.Completion.create(engine="text-davinci-003", prompt=task, max_tokens=200)
+    return response["choices"][0]["text"].strip()
 
-    cursor.execute("SELECT * FROM business_metrics WHERE timestamp < date('now', '-30 days')")
-    old_data = cursor.fetchall()
-
-    if old_data:
-        storage_api_url = os.getenv("COLD_STORAGE_API", "https://secure-storage-service.com/upload")
-        response = requests.post(storage_api_url, json={"data": old_data})
-        if response.status_code == 200:
-            cursor.execute("DELETE FROM business_metrics WHERE timestamp < date('now', '-30 days')")
-            conn.commit()
-
-    conn.close()
-
-@app.on_event("startup")
-async def schedule_storage_optimization():
-    """Starts the background storage optimization loop."""
-    asyncio.create_task(storage_loop())
-
-async def storage_loop():
-    """Runs the data storage optimization process once per day."""
-    while True:
-        move_old_data_to_cold_storage()
-        await asyncio.sleep(86400)  # Run every 24 hours
+@app.post("/batch-process-questions")
+async def batch_process_questions(questions: list):
+    """Receives multiple questions and processes them in a batch."""
+    await batch_process_ai_tasks(questions)
+    return {"message": "Batch processing started"}
 
 # ---------------------------------------
 # 🚀 Run the App
@@ -321,3 +364,5 @@ async def storage_loop():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+Code after cost savings optimization 
