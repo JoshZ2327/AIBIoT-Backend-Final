@@ -125,7 +125,7 @@ def choose_best_cloud_provider():
 
 @app.post("/ask-question")
 def ask_question(data: BusinessQuestion):
-    """AI-powered business Q&A with cloud cost optimization and caching."""
+    """AI-powered Q&A with real-time business data integration, caching, and cost optimization."""
 
     question = data.question
     if not question:
@@ -135,20 +135,38 @@ def ask_question(data: BusinessQuestion):
     if question in CACHE:
         return {"answer": CACHE[question]}  # Return cached answer ✅
 
-    # ✅ Step 2: Choose the lowest-cost AI provider dynamically
+    # 🔍 Step 2: Retrieve Business Data
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, type, path FROM data_sources")
+    sources = cursor.fetchall()
+    conn.close()
+
+    business_data = []
+    for name, data_type, path in sources:
+        if data_type == "sqlite":
+            try:
+                conn = sqlite3.connect(path)
+                df = pd.read_sql_query("SELECT * FROM business_metrics ORDER BY timestamp DESC LIMIT 10", conn)
+                conn.close()
+                business_data.append(f"Data from {name}:\n{df.to_string()}")
+            except Exception:
+                pass
+
+    business_context = "\n\n".join(business_data)
+    prompt = f"Using this data:\n{business_context}\n\nAnswer: {question}"
+
+    # ✅ Step 3: Choose the lowest-cost AI provider dynamically
     best_provider = choose_best_cloud_provider()
-
+    
     if best_provider == "OpenAI":
-        response = openai.Completion.create(engine="text-davinci-003", prompt=question, max_tokens=200)
-        answer = response["choices"][0]["text"].strip()
-    elif best_provider == "AWS Bedrock":
-        response = requests.post("https://aws-bedrock-endpoint", json={"text": question})
-        answer = response.json().get("answer", "No answer available.")
+        response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=200)
     else:
-        response = requests.post("https://google-vertex-ai-endpoint", json={"text": question})
-        answer = response.json().get("answer", "No answer available.")
+        response = requests.post(f"https://{best_provider.lower()}-endpoint", json={"text": question})
 
-    # ✅ Step 3: Store the result in cache to save costs
+    answer = response.json().get("answer", "No answer available.")
+
+    # ✅ Step 4: Store the result in cache to save costs
     CACHE[question] = answer  
 
     return {"answer": answer}
