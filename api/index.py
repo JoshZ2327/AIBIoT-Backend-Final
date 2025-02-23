@@ -42,6 +42,7 @@ def init_db():
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
 
+    # Table for Data Sources
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS data_sources (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,6 +52,7 @@ def init_db():
         )
     """)
 
+    # Table for Business Metrics
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS business_metrics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,12 +62,25 @@ def init_db():
         )
     """)
 
+    # Table for IoT Sensor Data
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS iot_sensors (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp TEXT,
             sensor TEXT,
             value REAL
+        )
+    """)
+
+    # Table for IoT Anomalies
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS iot_anomalies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            sensor TEXT,
+            value REAL,
+            anomaly_score REAL,
+            status TEXT  -- 'High', 'Medium', 'Low'
         )
     """)
 
