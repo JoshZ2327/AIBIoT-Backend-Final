@@ -412,6 +412,24 @@ def predict_trends(request: PredictionRequest):
 
     return {"category": request.category, "predicted_values": future_predictions}
 
+@app.post("/get-recommendations")
+def get_recommendations(request: RecommendationRequest):
+    """Generate AI-based business recommendations based on predictions."""
+    category = request.category
+    predicted_values = request.predicted_values
+
+    # ✅ Basic recommendation logic (example)
+    avg_future_value = sum(predicted_values) / len(predicted_values)
+    
+    recommendations = []
+    if avg_future_value > 10000:
+        recommendations.append(f"💡 Consider investing more in {category} due to high projected growth.")
+    else:
+        recommendations.append(f"⚠️ Be cautious with {category}, as projections show slow growth.")
+
+    return {"recommendations": recommendations}
+    
+
 def move_old_data_to_cold_storage():
     """Moves older AI results to cheaper cold storage (like S3 or Glacier)."""
     conn = sqlite3.connect(DATABASE)
