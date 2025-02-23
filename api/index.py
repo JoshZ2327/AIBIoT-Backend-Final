@@ -11,7 +11,7 @@ import requests
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import IsolationForest
 from statsmodels.tsa.arima.model import ARIMA
-from fbprophet import Prophet
+from prophet import Prophet
 from fastapi.middleware.cors import CORSMiddleware
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
