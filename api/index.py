@@ -170,44 +170,6 @@ def ask_question(data: BusinessQuestion):
     CACHE[question] = answer  
 
     return {"answer": answer}
-    
-    # 🔍 Fetch Data Sources
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT name, type, path FROM data_sources")
-    sources = cursor.fetchall()
-    conn.close()
-
-    business_data = []
-    
-    # 📊 Process Data Sources
-    for name, data_type, path in sources:
-        if data_type == "sqlite":
-            try:
-                conn = sqlite3.connect(path)
-                df = pd.read_sql_query("SELECT * FROM business_metrics ORDER BY timestamp DESC LIMIT 10", conn)
-                conn.close()
-                business_data.append(f"Data from {name}:\n{df.to_string()}")
-            except Exception as e:
-                business_data.append(f"Could not query {name}: {str(e)}")
-
-        elif data_type == "csv":
-            try:
-                df = pd.read_csv(path)
-                business_data.append(f"Data from {name}:\n{df.head(10).to_string()}")
-            except Exception as e:
-                business_data.append(f"Could not read {name}: {str(e)}")
-
-    # 🔗 Combine Business Data with AI Question
-    business_context = "\n\n".join(business_data)
-    prompt = f"Using this data:\n{business_context}\n\nAnswer: {question}"
-
-    # 🚀 AI Response
-    try:
-        response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=200)
-        return {"answer": response["choices"][0]["text"].strip()}
-    except Exception as e:
-        return {"error": str(e)}
 
 # ---------------------------------------
 # 🚀 AI-Powered Alerts & Notifications
