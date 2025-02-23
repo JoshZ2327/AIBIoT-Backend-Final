@@ -112,14 +112,39 @@ def ai_dashboard():
 # ---------------------------------------
 # 🚀 AI-Powered Business Question Answering
 # ---------------------------------------
+def choose_best_cloud_provider():
+    """Dynamically choose the cheapest cloud AI provider"""
+    provider_costs = {
+        "OpenAI": 0.02,  # Cost per 1,000 tokens (example)
+        "AWS Bedrock": 0.015,
+        "Google Vertex AI": 0.018
+    }
+    return min(provider_costs, key=provider_costs.get)  # Choose cheapest
+
 @app.post("/ask-question")
 def ask_question(data: BusinessQuestion):
-    """AI-powered business Q&A with real-time data integration."""
-    
+    """AI-powered business Q&A with cloud cost optimization."""
+
     question = data.question
     if not question:
         raise HTTPException(status_code=400, detail="No question provided.")
 
+    best_provider = choose_best_cloud_provider()  # Select lowest-cost AI API
+
+    if best_provider == "OpenAI":
+        response = openai.Completion.create(engine="text-davinci-003", prompt=question, max_tokens=200)
+        answer = response["choices"][0]["text"].strip()
+
+    elif best_provider == "AWS Bedrock":
+        aws_response = requests.post("https://aws-bedrock-endpoint", json={"text": question})
+        answer = aws_response.json().get("answer", "No response from AWS.")
+
+    else:  # Google Vertex AI
+        google_response = requests.post("https://google-vertex-ai-endpoint", json={"text": question})
+        answer = google_response.json().get("answer", "No response from Google.")
+
+    return {"answer": answer}
+    
     # 🔍 Fetch Data Sources
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
