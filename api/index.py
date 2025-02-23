@@ -307,6 +307,38 @@ async def schedule_storage_optimization():
 # 🚀 AI-Powered Batch Processing for Cost Efficiency
 # ---------------------------------------
 
+# ---------------------------------------
+# 🚀 AI-Powered Batch Processing for Cost Efficiency
+# ---------------------------------------
+
+async def run_ai_task(task):
+    """Executes an AI processing task with optimized AI selection."""
+    best_provider = choose_best_cloud_provider()
+
+    if best_provider == "OpenAI":
+        response = openai.Completion.create(engine="text-davinci-003", prompt=task, max_tokens=200)
+        return response["choices"][0]["text"].strip()
+    elif best_provider == "AWS Bedrock":
+        response = requests.post("https://aws-bedrock-endpoint", json={"text": task})
+        return response.json().get("answer", "No answer available.")
+    elif best_provider == "Google Vertex AI":
+        response = requests.post("https://google-vertex-ai-endpoint", json={"text": task})
+        return response.json().get("answer", "No answer available.")
+    else:
+        return "No AI provider available."
+
+async def batch_process_ai_tasks(tasks):
+    """Groups AI queries into batches instead of running them one by one."""
+    batch_size = 5  # Process 5 queries at a time to reduce API costs
+    for i in range(0, len(tasks), batch_size):
+        batch = tasks[i : i + batch_size]
+        await asyncio.gather(*[run_ai_task(task) for task in batch])
+
+@app.post("/batch-process-questions")
+async def batch_process_questions(questions: list):
+    """Receives multiple questions and processes them in a batch."""
+    await batch_process_ai_tasks(questions)
+    return {"message": "Batch processing started"}
 async def batch_process_ai_tasks(tasks):
     """Groups AI queries into batches instead of running them one by one."""
     batch_size = 5  # Process 5 queries at a time to reduce API costs
