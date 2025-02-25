@@ -101,6 +101,16 @@ cursor.execute("""
         )
     """)
 
+    # ✅ Table for Voice Questions & Responses
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS voice_questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            question TEXT,
+            response TEXT
+        )
+    """)
+
     conn.commit()
     conn.close()
     
