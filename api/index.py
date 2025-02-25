@@ -609,7 +609,17 @@ def process_voice_question(request: VoiceQuestionRequest):
     except Exception as e:
         print(f"❌ Error processing voice question: {e}")
         raise HTTPException(status_code=500, detail="Error processing AI response.")
-        
+
+@app.get("/voice-ask-history")
+def fetch_voice_question_history():
+    """Fetches all stored voice questions and responses."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT timestamp, question, response FROM voice_questions ORDER BY timestamp DESC LIMIT 50")
+    history = [{"timestamp": row[0], "question": row[1], "response": row[2]} for row in cursor.fetchall()]
+    conn.close()
+    return {"history": history}
+    
 # ---------------------------------------
 # 🚀 AI-Powered Alerts & Notifications
 # ---------------------------------------
