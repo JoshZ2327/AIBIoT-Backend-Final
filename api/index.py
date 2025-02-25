@@ -526,6 +526,45 @@ def ask_question(data: BusinessQuestion):
 
     return {"answer": answer}
 
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import openai  # Ensure OpenAI is installed and configured
+
+# ✅ AI API Key (Ensure it's set up)
+openai.api_key = "your-openai-api-key"  # Replace with your actual API key
+
+app = FastAPI()
+
+# ✅ Define the Request Model
+class VoiceQuestionRequest(BaseModel):
+    question: str
+
+# ✅ API Endpoint to Process the Voice Question
+@app.post("/voice-ask")
+def process_voice_question(request: VoiceQuestionRequest):
+    """Processes voice-input business questions and returns AI-generated insights."""
+    
+    question_text = request.question.strip()
+    
+    if not question_text:
+        raise HTTPException(status_code=400, detail="Question cannot be empty.")
+
+    try:
+        # ✅ Send the question to OpenAI or your AI model
+        response = openai.Completion.create(
+            engine="text-davinci-003",  # Choose a model
+            prompt=f"Business AI, answer this question: {question_text}",
+            max_tokens=200
+        )
+
+        ai_answer = response["choices"][0]["text"].strip()
+
+        return {"answer": ai_answer}
+
+    except Exception as e:
+        print(f"❌ Error processing voice question: {e}")
+        raise HTTPException(status_code=500, detail="Error processing AI response.")
+        
 # ---------------------------------------
 # 🚀 AI-Powered Alerts & Notifications
 # ---------------------------------------
