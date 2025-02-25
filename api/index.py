@@ -187,6 +187,45 @@ def delete_data_source(name: str):
     conn.commit()
     conn.close()
     return {"message": f"Data source {name} deleted successfully."}
+
+# ---------------------------------------
+# 🚀 IoT Automation API Endpoints
+# ---------------------------------------
+
+class AutomationRule(BaseModel):
+    trigger_condition: str
+    action: str
+
+@app.post("/add-automation-rule")
+def add_automation_rule(rule: AutomationRule):
+    """Adds a new automation rule to the database."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO iot_automation_rules (trigger_condition, action) VALUES (?, ?)", 
+                   (rule.trigger_condition, rule.action))
+    conn.commit()
+    conn.close()
+    return {"message": "Automation rule added successfully."}
+
+@app.get("/get-automation-rules")
+def get_automation_rules():
+    """Fetches all stored automation rules."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, trigger_condition, action FROM iot_automation_rules")
+    rules = [{"id": row[0], "trigger_condition": row[1], "action": row[2]} for row in cursor.fetchall()]
+    conn.close()
+    return {"rules": rules}
+
+@app.delete("/delete-automation-rule/{rule_id}")
+def delete_automation_rule(rule_id: int):
+    """Deletes a specific automation rule from the database."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM iot_automation_rules WHERE id = ?", (rule_id,))
+    conn.commit()
+    conn.close()
+    return {"message": "Automation rule deleted successfully."}
     
 # ---------------------------------------
 # 🚀 AI-Powered Business Insights & Metrics
