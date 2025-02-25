@@ -543,16 +543,25 @@ class VoiceQuestionRequest(BaseModel):
 @app.post("/voice-ask")
 def process_voice_question(request: VoiceQuestionRequest):
     """Processes voice-input business questions and returns AI-generated insights."""
-    
+
     question_text = request.question.strip()
     
     if not question_text:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
 
+    # ✅ Get the AI model selection from the database (or use a default model)
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT model FROM ai_model_selection ORDER BY id DESC LIMIT 1")
+    selected_model = cursor.fetchone()
+    conn.close()
+
+    ai_model = selected_model[0] if selected_model else "text-davinci-003"  # Default to "text-davinci-003"
+
     try:
-        # ✅ Send the question to OpenAI or your AI model
+        # ✅ Send the question to the AI model selected by the user
         response = openai.Completion.create(
-            engine="text-davinci-003",  # Choose a model
+            engine=ai_model,
             prompt=f"Business AI, answer this question: {question_text}",
             max_tokens=200
         )
