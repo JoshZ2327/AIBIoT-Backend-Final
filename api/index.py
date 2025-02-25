@@ -495,11 +495,17 @@ async def websocket_iot(websocket: WebSocket):
     try:
         while True:
             latest_iot_data = fetch_latest_iot_data()
+
+            # 🚨 Check if any automation rule matches this data
+            triggered_actions = check_automation_rules(latest_iot_data)
+            if triggered_actions:
+                latest_iot_data["triggered_actions"] = triggered_actions
+
             await websocket.send_json(latest_iot_data)
             await asyncio.sleep(5)  # Send updates every 5 seconds
     except WebSocketDisconnect:
         print("❌ IoT WebSocket Disconnected")
-
+        
 @app.get("/fetch-anomalies")
 def fetch_anomalies():
     """Fetch all detected anomalies."""
