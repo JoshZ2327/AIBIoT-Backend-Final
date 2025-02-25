@@ -84,7 +84,7 @@ def init_db():
         )
     """)
 
-        # Table for IoT Automation Rules
+    # Table for IoT Automation Rules
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS iot_automation_rules (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,7 +92,16 @@ def init_db():
             action TEXT
         )
     """)
-    
+
+    # Table for IoT Automation Logs
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS iot_automation_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT,
+        action TEXT
+    )
+""")
+
     conn.commit()
     conn.close()
     
