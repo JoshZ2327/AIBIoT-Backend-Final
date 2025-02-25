@@ -535,7 +535,7 @@ async def websocket_iot(websocket: WebSocket):
         while True:
             latest_iot_data = fetch_latest_iot_data()
 
-            # 🚨 Check if any automation rule matches this data
+            # ✅ Check if any automation rule matches this data
             triggered_actions = check_automation_rules(latest_iot_data)
             if triggered_actions:
                 latest_iot_data["triggered_actions"] = triggered_actions
