@@ -99,8 +99,8 @@ cursor.execute("""
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp TEXT,
         action TEXT
-    )
-""")
+        )
+    """)
 
     conn.commit()
     conn.close()
