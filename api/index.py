@@ -555,7 +555,7 @@ def fetch_latest_iot_data():
     triggered_actions = check_automation_rules(latest_data)
     if triggered_actions:
         latest_data["triggered_actions"] = triggered_actions
-        execute_automation_actions(triggered_actions)  # NEW: Execute actions
+        execute_automation_actions(triggered_actions)  # ✅ NEW: Executes actions
 
     return latest_data
     
