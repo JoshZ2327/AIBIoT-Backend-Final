@@ -227,6 +227,21 @@ def delete_automation_rule(rule_id: int):
     conn.close()
     return {"message": "Automation rule deleted successfully."}
 
+import ast
+
+def safe_eval_condition(condition: str, sensor_value: float):
+    """Safely evaluates automation rule conditions."""
+    condition = condition.replace("Temperature", str(sensor_value))
+
+    try:
+        # ✅ Securely parse the condition and evaluate
+        node = ast.parse(condition, mode='eval')
+        if isinstance(node, ast.Expression):
+            return eval(compile(node, "<string>", "eval"))
+    except Exception as e:
+        print(f"❌ Error evaluating automation rule: {e}")
+        return False
+
 def check_automation_rules(iot_data):
     """Checks if any automation rule matches the incoming IoT data."""
     conn = sqlite3.connect(DATABASE)
@@ -240,14 +255,10 @@ def check_automation_rules(iot_data):
         trigger_condition = rule[0]
         action = rule[1]
 
-        # ✅ Simple condition matching (e.g., "Temperature > 50")
-        try:
-            condition = trigger_condition.replace("Temperature", str(iot_data["value"]))
-            if eval(condition):  # ⚠️ Ensure input validation for security
-                triggered_actions.append(action)
-                print(f"🔥 Automation Rule Triggered: {action}")
-        except Exception as e:
-            print(f"❌ Error processing rule: {e}")
+        # ✅ Securely evaluate the rule condition
+        if safe_eval_condition(trigger_condition, iot_data["value"]):
+            triggered_actions.append(action)
+            print(f"🔥 Automation Rule Triggered: {action}")
 
     return triggered_actions
     
