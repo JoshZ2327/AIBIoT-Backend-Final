@@ -235,7 +235,17 @@ def delete_automation_rule(rule_id: int):
     conn.commit()
     conn.close()
     return {"message": "Automation rule deleted successfully."}
-
+    
+@app.get("/get-automation-logs")
+def get_automation_logs():
+    """Fetches all executed automation actions."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT timestamp, action FROM iot_automation_logs ORDER BY timestamp DESC LIMIT 50")
+    logs = [{"timestamp": row[0], "action": row[1]} for row in cursor.fetchall()]
+    conn.close()
+    return {"logs": logs}
+    
 import ast
 
 def safe_eval_condition(condition: str, sensor_value: float):
