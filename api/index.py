@@ -84,9 +84,18 @@ def init_db():
         )
     """)
 
+        # Table for IoT Automation Rules
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS iot_automation_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            trigger_condition TEXT,
+            action TEXT
+        )
+    """)
+    
     conn.commit()
     conn.close()
-
+    
 init_db()
 
 from sklearn.ensemble import IsolationForest
