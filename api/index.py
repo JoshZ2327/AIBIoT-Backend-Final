@@ -288,9 +288,10 @@ def execute_automation_actions(actions):
 
     for action in actions:
         print(f"⚡ Executing Automation Action: {action}")
-        # ✅ Log action execution
-        cursor.execute("INSERT INTO iot_automation_logs (timestamp, action) VALUES (?, ?)",
-                       (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), action))
+        
+        # ✅ Log action execution to iot_automation_logs table
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("INSERT INTO iot_automation_logs (timestamp, action) VALUES (?, ?)", (timestamp, action))
 
         # ✅ Simulate real-world action execution
         if "Send Alert" in action:
