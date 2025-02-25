@@ -261,6 +261,28 @@ def check_automation_rules(iot_data):
             print(f"🔥 Automation Rule Triggered: {action}")
 
     return triggered_actions
+
+def execute_automation_actions(actions):
+    """Executes automation actions and logs them for traceability."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    for action in actions:
+        print(f"⚡ Executing Automation Action: {action}")
+        # ✅ Log action execution
+        cursor.execute("INSERT INTO iot_automation_logs (timestamp, action) VALUES (?, ?)",
+                       (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), action))
+
+        # ✅ Simulate real-world action execution
+        if "Send Alert" in action:
+            print("📩 Sending alert notification...")  # Replace with real email/SMS function
+        elif "Shut Down System" in action:
+            print("🚨 Emergency shutdown triggered!")  # Replace with real API call
+        elif "Adjust Temperature" in action:
+            print("❄️ Adjusting temperature control...")  # Replace with IoT control API
+
+    conn.commit()
+    conn.close()
     
 # ---------------------------------------
 # 🚀 AI-Powered Business Insights & Metrics
