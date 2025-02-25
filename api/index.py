@@ -226,6 +226,30 @@ def delete_automation_rule(rule_id: int):
     conn.commit()
     conn.close()
     return {"message": "Automation rule deleted successfully."}
+
+def check_automation_rules(iot_data):
+    """Checks if any automation rule matches the incoming IoT data."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT trigger_condition, action FROM iot_automation_rules")
+    rules = cursor.fetchall()
+    conn.close()
+
+    triggered_actions = []
+    for rule in rules:
+        trigger_condition = rule[0]
+        action = rule[1]
+
+        # ✅ Simple condition matching (e.g., "Temperature > 50")
+        try:
+            condition = trigger_condition.replace("Temperature", str(iot_data["value"]))
+            if eval(condition):  # ⚠️ Ensure input validation for security
+                triggered_actions.append(action)
+                print(f"🔥 Automation Rule Triggered: {action}")
+        except Exception as e:
+            print(f"❌ Error processing rule: {e}")
+
+    return triggered_actions
     
 # ---------------------------------------
 # 🚀 AI-Powered Business Insights & Metrics
