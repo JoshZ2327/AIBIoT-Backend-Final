@@ -550,6 +550,22 @@ class VoiceQuestionRequest(BaseModel):
     question: str
 
 # ✅ API Endpoint to Process the Voice Question
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import openai
+import sqlite3
+import datetime
+import os
+
+app = FastAPI()
+
+# ✅ Set up OpenAI API Key
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Ensure this is set in your environment
+
+# ✅ Define the Request Model
+class VoiceQuestionRequest(BaseModel):
+    question: str
+
 @app.post("/voice-ask")
 def process_voice_question(request: VoiceQuestionRequest):
     """Processes voice-input business questions and returns AI-generated insights."""
@@ -559,24 +575,34 @@ def process_voice_question(request: VoiceQuestionRequest):
     if not question_text:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
 
-    # ✅ Get the AI model selection from the database (or use a default model)
-    conn = sqlite3.connect(DATABASE)
+    # ✅ Fetch the AI model selection from the database (or use a default model)
+    conn = sqlite3.connect("ai_data.db")
     cursor = conn.cursor()
     cursor.execute("SELECT model FROM ai_model_selection ORDER BY id DESC LIMIT 1")
     selected_model = cursor.fetchone()
     conn.close()
 
-    ai_model = selected_model[0] if selected_model else "text-davinci-003"  # Default to "text-davinci-003"
+    ai_model = selected_model[0] if selected_model else "text-davinci-003"  # Default model
 
     try:
-        # ✅ Send the question to the AI model selected by the user
+        # ✅ Generate AI response
         response = openai.Completion.create(
             engine=ai_model,
             prompt=f"Business AI, answer this question: {question_text}",
             max_tokens=200
         )
-
         ai_answer = response["choices"][0]["text"].strip()
+
+        # ✅ Store the question and AI response in the database
+        conn = sqlite3.connect("ai_data.db")
+        cursor = conn.cursor()
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute(
+            "INSERT INTO voice_questions (timestamp, question, response) VALUES (?, ?, ?)",
+            (timestamp, question_text, ai_answer)
+        )
+        conn.commit()
+        conn.close()
 
         return {"answer": ai_answer}
 
