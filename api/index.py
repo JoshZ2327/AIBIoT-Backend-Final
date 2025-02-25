@@ -489,7 +489,7 @@ def fetch_data_sources_from_db():
     return sources
 
 def fetch_latest_iot_data():
-    """Fetches the latest IoT sensor data, detects anomalies, and applies automation rules."""
+    """Fetches the latest IoT sensor data, detects anomalies, and executes automation actions."""
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
     cursor.execute("SELECT timestamp, sensor, value FROM iot_sensors ORDER BY timestamp DESC LIMIT 1")
@@ -513,6 +513,7 @@ def fetch_latest_iot_data():
     triggered_actions = check_automation_rules(latest_data)
     if triggered_actions:
         latest_data["triggered_actions"] = triggered_actions
+        execute_automation_actions(triggered_actions)  # NEW: Execute actions
 
     return latest_data
     
