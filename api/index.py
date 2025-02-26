@@ -189,7 +189,53 @@ def detect_anomalies(sensor_name: str):
     conn.close()
 
     return anomalies
+import numpy as np
+from sklearn.ensemble import IsolationForest
 
+def adjust_thresholds(sensor_name: str):
+    """AI dynamically adjusts IoT automation thresholds based on historical sensor data."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    # Fetch the last 100 readings for the sensor
+    cursor.execute("SELECT timestamp, value FROM iot_sensors WHERE sensor = ? ORDER BY timestamp DESC LIMIT 100", (sensor_name,))
+    data = cursor.fetchall()
+    conn.close()
+
+    if len(data) < 10:
+        print(f"⚠️ Not enough data to adjust threshold for {sensor_name}.")
+        return
+
+    timestamps, values = zip(*data)
+    values = np.array(values).reshape(-1, 1)  # Convert values for ML model
+
+    # Train an Isolation Forest model to detect patterns
+    model = IsolationForest(contamination=0.05, random_state=42)
+    model.fit(values)
+
+    # Calculate the **95th percentile value** as the new threshold
+    adjusted_threshold = np.percentile(values, 95)
+
+    # Store new AI-adjusted threshold in database
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    # Check if threshold already exists
+    cursor.execute("SELECT * FROM ai_adjusted_thresholds WHERE sensor = ?", (sensor_name,))
+    existing_entry = cursor.fetchone()
+
+    if existing_entry:
+        cursor.execute("UPDATE ai_adjusted_thresholds SET adjusted_threshold = ?, last_updated = datetime('now') WHERE sensor = ?", 
+                       (adjusted_threshold, sensor_name))
+    else:
+        cursor.execute("INSERT INTO ai_adjusted_thresholds (sensor, baseline_threshold, adjusted_threshold, last_updated) VALUES (?, ?, ?, datetime('now'))", 
+                       (sensor_name, np.mean(values), adjusted_threshold))
+
+    conn.commit()
+    conn.close()
+
+    print(f"✅ AI adjusted threshold for {sensor_name}: {adjusted_threshold}")
+    
 def generate_ai_anomaly_explanation(sensor, anomaly_details):
     """Generates an AI-powered explanation for anomalies."""
     anomaly_value = anomaly_details["value"]
