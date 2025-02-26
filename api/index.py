@@ -386,7 +386,59 @@ def delete_automation_rule(rule_id: int):
     conn.commit()
     conn.close()
     return {"message": "Automation rule deleted successfully."}
+    
+from fastapi import FastAPI, HTTPException
+import json
+import sqlite3
 
+app = FastAPI()
+
+DATABASE = "ai_data.db"
+
+# 🚀 Digital Twin API Endpoints
+@app.post("/add-digital-twin")
+def add_digital_twin(asset_name: str, asset_type: str):
+    """Create a new Digital Twin."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    # Default empty JSON structure for sensor data and thresholds
+    sensor_data = json.dumps({})
+    ai_thresholds = json.dumps({})
+
+    try:
+        cursor.execute("INSERT INTO digital_twins (asset_name, asset_type, sensor_data, ai_thresholds) VALUES (?, ?, ?, ?)", 
+                       (asset_name, asset_type, sensor_data, ai_thresholds))
+        conn.commit()
+        return {"message": f"✅ Digital Twin '{asset_name}' added successfully!"}
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail=f"❌ Digital Twin '{asset_name}' already exists.")
+
+@app.get("/get-digital-twins")
+def get_digital_twins():
+    """Fetch all Digital Twins."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT asset_name, asset_type, sensor_data, ai_thresholds, status FROM digital_twins")
+    twins = [{"asset_name": row[0], "asset_type": row[1], "sensor_data": json.loads(row[2]), "ai_thresholds": json.loads(row[3]), "status": row[4]} for row in cursor.fetchall()]
+    conn.close()
+    return {"digital_twins": twins}
+
+@app.post("/update-digital-twin")
+def update_digital_twin(asset_name: str, sensor_data: dict):
+    """Update sensor data of a Digital Twin."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    # Convert sensor data to JSON format
+    sensor_data_json = json.dumps(sensor_data)
+
+    cursor.execute("UPDATE digital_twins SET sensor_data = ?, last_updated = CURRENT_TIMESTAMP WHERE asset_name = ?", 
+                   (sensor_data_json, asset_name))
+    conn.commit()
+    conn.close()
+    return {"message": f"✅ Digital Twin '{asset_name}' updated successfully!"}
+    
 # ---------------------------------------
 # 🚀 Voice Command Processing for IoT Control
 # ---------------------------------------
