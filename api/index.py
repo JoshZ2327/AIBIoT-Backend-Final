@@ -132,6 +132,18 @@ cursor.execute("""
             response TEXT
         )
     """)
+    # ✅ Digital Twin Table
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS digital_twins (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_name TEXT UNIQUE,
+        asset_type TEXT,
+        sensor_data TEXT,  -- JSON format: { "temperature": 22.5, "pressure": 30 }
+        ai_thresholds TEXT,  -- JSON format: { "temperature": 25.0 }
+        status TEXT DEFAULT 'Active',
+        last_updated TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+""")
 
     conn.commit()
     conn.close()
