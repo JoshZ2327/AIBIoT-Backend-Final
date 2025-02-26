@@ -438,7 +438,27 @@ def update_digital_twin(asset_name: str, sensor_data: dict):
     conn.commit()
     conn.close()
     return {"message": f"✅ Digital Twin '{asset_name}' updated successfully!"}
+@app.get("/get-digital-twin-3d")
+def get_digital_twin_3d(asset_name: str):
+    """Fetch 3D visualization data for a Digital Twin."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT asset_name, sensor_data, ai_thresholds FROM digital_twins WHERE asset_name = ?", (asset_name,))
+    row = cursor.fetchone()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail=f"❌ Digital Twin '{asset_name}' not found.")
 
+    asset_data = {
+        "asset_name": row[0],
+        "sensor_data": json.loads(row[1]),
+        "ai_thresholds": json.loads(row[2]),
+    }
+
+    conn.close()
+    return asset_data
+    
 import json
 import sqlite3
 import numpy as np
