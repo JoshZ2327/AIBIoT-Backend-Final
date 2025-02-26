@@ -132,7 +132,7 @@ from sklearn.ensemble import IsolationForest
 import numpy as np
 
 def detect_anomalies(sensor_name: str):
-    """Detect anomalies in IoT sensor data using Isolation Forest."""
+    """Detect anomalies in IoT sensor data using Isolation Forest and generate AI explanations."""
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
     
@@ -157,7 +157,17 @@ def detect_anomalies(sensor_name: str):
     for i in range(len(predictions)):
         if predictions[i] == -1:  # -1 indicates an anomaly
             status = "High" if anomaly_scores[i] < -0.1 else "Medium"
-            anomalies.append({"timestamp": timestamps[i], "sensor": sensor_name, "value": values[i][0], "anomaly_score": anomaly_scores[i], "status": status})
+            anomaly_details = {
+                "timestamp": timestamps[i],
+                "sensor": sensor_name,
+                "value": values[i][0],
+                "anomaly_score": anomaly_scores[i],
+                "status": status
+            }
+            anomalies.append(anomaly_details)
+
+            # ✅ Generate AI Explanation for Detected Anomaly
+            generate_ai_anomaly_explanation(sensor_name, anomaly_details)
 
     # Save anomalies to DB
     conn = sqlite3.connect(DATABASE)
@@ -169,7 +179,59 @@ def detect_anomalies(sensor_name: str):
     conn.close()
 
     return anomalies
-    
+
+def generate_ai_anomaly_explanation(sensor, anomaly_details):
+    """Generates an AI-powered explanation for anomalies."""
+    anomaly_value = anomaly_details["value"]
+    anomaly_score = anomaly_details["anomaly_score"]
+    status = anomaly_details["status"]
+
+    # ✅ Construct OpenAI Prompt
+    prompt = f"""
+    The following IoT sensor has detected an anomaly:
+
+    📡 **Sensor:** {sensor}
+    ❌ **Detected Value:** {anomaly_value}
+    📊 **Anomaly Score:** {anomaly_score}
+    🚨 **Severity Level:** {status}
+
+    Provide an **explanation** for why this anomaly occurred, a **recommended fix**, and a **preventive action**.
+
+    Response Format:
+    📌 Explanation:
+    🔧 Recommended Fix:
+    🔮 Preventive Action:
+    """
+
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=prompt,
+            max_tokens=200
+        )
+        
+        ai_text = response["choices"][0]["text"].strip().split("\n")
+
+        # ✅ Extract AI-generated insights
+        explanation = ai_text[0].replace("📌 Explanation:", "").strip()
+        recommended_fix = ai_text[1].replace("🔧 Recommended Fix:", "").strip()
+        preventive_action = ai_text[2].replace("🔮 Preventive Action:", "").strip()
+
+        # ✅ Save to Database
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            INSERT INTO ai_anomaly_explanations (timestamp, sensor, anomaly, explanation, recommended_fix, preventive_action)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (timestamp, sensor, f"Value: {anomaly_value}, Score: {anomaly_score}, Severity: {status}",
+              explanation, recommended_fix, preventive_action))
+        conn.commit()
+        conn.close()
+
+    except Exception as e:
+        print(f"❌ AI Anomaly Explanation Error: {e}")
+        
 # ---------------------------------------
 # 📌 Data Models
 # ---------------------------------------
