@@ -113,6 +113,16 @@ cursor.execute("""
         )
     """)
 
+    # Table for AI-Adjusted Thresholds
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ai_adjusted_thresholds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sensor TEXT UNIQUE,
+        baseline_threshold REAL,
+        adjusted_threshold REAL,
+        last_updated TEXT
+    )
+""")
     # ✅ Table for Voice Questions & Responses
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS voice_questions (
