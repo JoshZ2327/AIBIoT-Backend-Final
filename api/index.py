@@ -82,7 +82,19 @@ def init_db():
             status TEXT  -- 'High', 'Medium', 'Low'
         )
     """)
-
+        # Table for AI Anomaly Explanations
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ai_anomaly_explanations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            sensor TEXT,
+            anomaly TEXT,
+            explanation TEXT,
+            recommended_fix TEXT,
+            preventive_action TEXT
+        )
+    """)
+    
     # Table for IoT Automation Rules
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS iot_automation_rules (
