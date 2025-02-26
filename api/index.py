@@ -444,22 +444,33 @@ def safe_eval_condition(condition: str, sensor_value: float):
         return False
 
 def check_automation_rules(iot_data):
-    """Checks if any automation rule matches the incoming IoT data."""
+    """Checks if any AI-adjusted automation rule matches the incoming IoT data."""
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
+
+    # Fetch AI-adjusted threshold for this sensor
+    cursor.execute("SELECT adjusted_threshold FROM ai_adjusted_thresholds WHERE sensor = ?", (iot_data["sensor"],))
+    adjusted_threshold = cursor.fetchone()
+    
+    if adjusted_threshold:
+        threshold_value = adjusted_threshold[0]  # AI-determined threshold
+    else:
+        return []  # No AI threshold available, skip automation
+
+    # Fetch automation rules
     cursor.execute("SELECT trigger_condition, action FROM iot_automation_rules")
     rules = cursor.fetchall()
     conn.close()
 
     triggered_actions = []
     for rule in rules:
-        trigger_condition = rule[0]
+        trigger_condition = rule[0].replace("THRESHOLD", str(threshold_value))  # Replace placeholder
         action = rule[1]
 
-        # ✅ Securely evaluate the rule condition
-        if safe_eval_condition(trigger_condition, iot_data["value"]):
+        # ✅ Check if IoT value exceeds AI threshold
+        if eval(trigger_condition):
             triggered_actions.append(action)
-            print(f"🔥 Automation Rule Triggered: {action}")
+            print(f"🔥 AI-Triggered Automation Rule: {action}")
 
     return triggered_actions
 
@@ -1065,7 +1076,28 @@ async def batch_process_questions(questions: list):
     """Receives multiple questions and processes them in a batch."""
     await batch_process_ai_tasks(questions)
     return {"message": "Batch processing started"}
+import asyncio
 
+async def update_ai_thresholds():
+    """Periodically updates AI-adjusted IoT thresholds."""
+    while True:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT sensor FROM iot_sensors")
+        sensors = [row[0] for row in cursor.fetchall()]
+        conn.close()
+
+        for sensor in sensors:
+            adjust_thresholds(sensor)
+
+        print("✅ AI-adjusted thresholds updated for all sensors.")
+        await asyncio.sleep(3600)  # Update every 1 hour
+
+@app.on_event("startup")
+async def start_threshold_updater():
+    """Runs the AI threshold adjustment in the background."""
+    asyncio.create_task(update_ai_thresholds())
+    
 # ---------------------------------------
 # 🚀 Run the App
 # ---------------------------------------
