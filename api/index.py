@@ -438,6 +438,55 @@ def update_digital_twin(asset_name: str, sensor_data: dict):
     conn.commit()
     conn.close()
     return {"message": f"✅ Digital Twin '{asset_name}' updated successfully!"}
+
+import json
+import sqlite3
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+DATABASE = "ai_data.db"
+
+# 🚀 AI-Adjusted IoT Automation Thresholds for Digital Twins
+def adjust_thresholds(asset_name: str):
+    """AI dynamically adjusts IoT automation thresholds based on Digital Twin data."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT sensor_data FROM digital_twins WHERE asset_name = ?", (asset_name,))
+    row = cursor.fetchone()
+
+    if not row:
+        print(f"❌ Digital Twin '{asset_name}' not found.")
+        return
+
+    sensor_data = json.loads(row[0])
+    values = np.array(list(sensor_data.values())).reshape(-1, 1)
+
+    if len(values) < 10:
+        print(f"⚠️ Not enough data to adjust threshold for {asset_name}.")
+        return
+
+    # Train AI model to detect patterns
+    model = IsolationForest(contamination=0.05, random_state=42)
+    model.fit(values)
+
+    # Adjust threshold to 95th percentile of historical sensor data
+    adjusted_threshold = np.percentile(values, 95)
+    ai_thresholds = json.dumps({"adjusted_threshold": adjusted_threshold})
+
+    cursor.execute("UPDATE digital_twins SET ai_thresholds = ?, last_updated = CURRENT_TIMESTAMP WHERE asset_name = ?", 
+                   (ai_thresholds, asset_name))
+    conn.commit()
+    conn.close()
+
+    print(f"✅ AI adjusted threshold for {asset_name}: {adjusted_threshold}")
+
+# ✅ Example API Endpoint to Trigger AI Threshold Adjustments
+@app.post("/adjust-ai-thresholds")
+def adjust_ai_thresholds(asset_name: str):
+    """API endpoint to trigger AI threshold adjustments for a Digital Twin."""
+    adjust_thresholds(asset_name)
+    return {"message": f"✅ AI thresholds adjusted for {asset_name}."}
     
 # ---------------------------------------
 # 🚀 Voice Command Processing for IoT Control
