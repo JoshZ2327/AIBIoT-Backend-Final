@@ -1,19 +1,38 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-
-router = APIRouter()
-
-# Define the request body structure
-class VoiceCommand(BaseModel):
+class VoiceCommandRequest(BaseModel):
     command: str
 
-# Simulated voice command handler
-@router.post("/voice-command")
-async def handle_voice_command(command: VoiceCommand):
-    # Example logic to interpret the voice command
-    if command.command.lower() == "turn on lights":
-        return {"response": "Lights turned on."}
-    elif command.command.lower() == "turn off lights":
-        return {"response": "Lights turned off."}
-    else:
-        raise HTTPException(status_code=400, detail="Unknown voice command.")
+@app.post("/voice-command")
+def process_voice_command(request: VoiceCommandRequest):
+    """Processes voice commands and triggers IoT actions."""
+    command = request.command.lower()
+
+    # ✅ Define voice-triggered actions
+    action_mapping = {
+        "turn on the lights": "Turn on Lights",
+        "turn off the lights": "Turn off Lights",
+        "increase temperature": "Increase Temperature",
+        "decrease temperature": "Decrease Temperature",
+        "open the door": "Open Door",
+        "close the door": "Close Door",
+        "activate alarm": "Activate Alarm",
+        "deactivate alarm": "Deactivate Alarm"
+    }
+
+    matched_action = None
+    for phrase, action in action_mapping.items():
+        if phrase in command:
+            matched_action = action
+            break
+
+    if matched_action:
+        # ✅ Log action in IoT Automation Logs
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("INSERT INTO iot_automation_logs (timestamp, action) VALUES (?, ?)", (timestamp, matched_action))
+        conn.commit()
+        conn.close()
+
+        return {"message": f"IoT Action Executed: {matched_action}"}
+
+    return {"message": "❌ Command not recognized"}
