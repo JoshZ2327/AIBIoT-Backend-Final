@@ -18,7 +18,12 @@ from sendgrid.helpers.mail import Mail
 import openai
 from routers import voice
 app.include_router(voice.router)
+from fastapi import FastAPI
+from routers import prediction
 
+app = FastAPI()
+
+app.include_router(prediction.router)
 app = FastAPI()
 # ...
 app.include_router(voice.router)
