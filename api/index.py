@@ -16,8 +16,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 import openai
+from routers import voice
+app.include_router(voice.router)
 
 app = FastAPI()
+# ...
+app.include_router(voice.router)
 
 # 🌍 Enable CORS for frontend integration
 app.add_middleware(
