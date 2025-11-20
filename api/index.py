@@ -23,6 +23,9 @@ app = FastAPI()
 # ...
 app.include_router(voice.router)
 
+from routers import prediction
+app.include_router(prediction.router)
+
 # 🌍 Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
