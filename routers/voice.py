@@ -1,3 +1,9 @@
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+router = APIRouter()
+
+# Define the request body structure
 class VoiceCommandRequest(BaseModel):
     command: str
 
