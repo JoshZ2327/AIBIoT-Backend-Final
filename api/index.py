@@ -20,6 +20,8 @@ from routers import voice
 app.include_router(voice.router)
 from fastapi import FastAPI
 from routers import prediction
+from routers import websocket
+app.include_router(websocket.router)
 
 app = FastAPI()
 
