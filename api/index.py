@@ -26,7 +26,6 @@ app.include_router(websocket.router)
 app = FastAPI()
 
 app.include_router(prediction.router)
-app = FastAPI()
 # ...
 app.include_router(voice.router)
 
