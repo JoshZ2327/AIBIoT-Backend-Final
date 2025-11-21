@@ -1,45 +1,39 @@
-# services/data_pipeline.py
-
 import sqlite3
+from utils.anomaly_detection import detect_anomalies
+from utils.automation import check_automation_rules, execute_automation_actions
 from datetime import datetime
-import pandas as pd
-import numpy as np
 
 DATABASE = "aibiot.db"
 
-def ingest_sensor_data(sensor_name: str, value: float):
-    """Inserts new sensor data into the database."""
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+def save_to_db(sensor_name: str, value: float):
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO iot_sensors (timestamp, sensor, value) VALUES (?, ?, ?)",
-        (timestamp, sensor_name, value)
-    )
+    timestamp = datetime.utcnow().isoformat()
+    cursor.execute("INSERT INTO iot_sensors (timestamp, sensor, value) VALUES (?, ?, ?)", (timestamp, sensor_name, value))
     conn.commit()
     conn.close()
-    return {"status": "success", "timestamp": timestamp}
 
+def ingest_sensor_data(sensor_name: str, value: float):
+    # Save raw data
+    save_to_db(sensor_name, value)
 
-def fetch_transformed_data(sensor_name: str, days: int = 7):
-    """Fetches and transforms sensor data for modeling."""
-    conn = sqlite3.connect(DATABASE)
-    query = f"""
-        SELECT timestamp, value FROM iot_sensors
-        WHERE sensor = ? ORDER BY timestamp DESC LIMIT ?
-    """
-    df = pd.read_sql_query(query, conn, params=(sensor_name, days * 24 * 60))  # up to 1 reading/min
-    conn.close()
+    result = {
+        "sensor": sensor_name,
+        "value": value,
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
-    if df.empty:
-        return pd.DataFrame()
+    # Detect anomalies
+    if detect_anomalies(sensor_name):
+        result["anomaly_detected"] = True
+        result["alert"] = f"Anomaly detected in {sensor_name}!"
+    else:
+        result["anomaly_detected"] = False
 
-    # Convert timestamp
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-    df = df.sort_values("timestamp")
+    # Run automation rules
+    triggered = check_automation_rules(result)
+    if triggered:
+        result["triggered_actions"] = triggered
+        execute_automation_actions(triggered)
 
-    # Transformation: rolling average & normalization
-    df["rolling_avg"] = df["value"].rolling(window=5, min_periods=1).mean()
-    df["normalized"] = (df["value"] - df["value"].mean()) / df["value"].std()
-
-    return df
+    return result
