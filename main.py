@@ -7,6 +7,9 @@ from services.anomalies import update_ai_thresholds
 import asyncio
 import os
 import openai
+from routers import digital_twin
+
+app.include_router(digital_twin.router)
 
 # ✅ Initialize FastAPI
 app = FastAPI()
