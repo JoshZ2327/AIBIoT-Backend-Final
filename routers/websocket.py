@@ -67,9 +67,5 @@ def fetch_latest_iot_data():
     else:
         latest_data["anomaly_detected"] = False
 
-    triggered_actions = check_automation_rules(latest_data)
-    if triggered_actions:
-        latest_data["triggered_actions"] = triggered_actions
-        execute_automation_actions(triggered_actions)
-
+    
     return latest_data
