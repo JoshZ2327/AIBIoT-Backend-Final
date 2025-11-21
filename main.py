@@ -1,29 +1,52 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from routers import voice, prediction, websocket, ingestion
+from database.init import init_db
+from services.storage import move_old_data_to_cold_storage
+from services.anomalies import update_ai_thresholds
+import asyncio
+import os
+import openai
 
-# Import your routers
-from routers.voice import router as voice_router
-from routers.prediction import router as prediction_router
-from routers.websocket_routes import router as websocket_router
-from routers.ingestion import router as ingestion_router
+# ✅ Initialize FastAPI
+app = FastAPI()
 
-# Create the FastAPI app
-app = FastAPI(
-    title="AIBIoT Platform",
-    description="AI-Driven IoT Monitoring and Automation",
-    version="1.0.0"
-)
+# ✅ Register Routers
+app.include_router(voice.router)
+app.include_router(prediction.router)
+app.include_router(websocket.router)
+app.include_router(ingestion.router)
 
-# Allow all CORS (for testing; tighten this in production)
+# ✅ Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Adjust for production
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(voice_router, prefix="/voice", tags=["Voice Commands"])
-app.include_router(prediction_router, prefix="/predict", tags=["AI Prediction"])
-app.include_router(websocket_router, tags=["WebSockets"])
-app.include_router(ingestion_router, prefix="/ingestion", tags=["Data Ingestion"])
+# ✅ Set API Keys
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# ✅ Initialize SQLite DB (creates tables if not exist)
+init_db()
+
+# ✅ Background Task: Cold Storage
+@app.on_event("startup")
+async def schedule_storage_optimization():
+    """Periodically move old data to cold storage."""
+    while True:
+        move_old_data_to_cold_storage()
+        await asyncio.sleep(86400)  # Every 24 hours
+
+# ✅ Background Task: Update AI Thresholds
+@app.on_event("startup")
+async def start_threshold_updater():
+    """Continuously updates AI thresholds."""
+    asyncio.create_task(update_ai_thresholds())
+
+# ✅ Run locally (optional)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
