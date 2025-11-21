@@ -17,10 +17,16 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 import openai
 from fastapi import FastAPI
-from routers import voice, prediction, websocket
+from fastapi import FastAPI
+from routers import voice, prediction, websocket, ingestion
+
+app = FastAPI()
+
+# Register all routers
 app.include_router(voice.router)
 app.include_router(prediction.router)
 app.include_router(websocket.router)
+app.include_router(ingestion.router)
 
 app = FastAPI()
 
