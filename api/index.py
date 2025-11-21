@@ -16,11 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 import openai
-from routers import voice
-app.include_router(voice.router)
 from fastapi import FastAPI
-from routers import prediction
-from routers import websocket
+from routers import voice, prediction, websocket
+app.include_router(voice.router)
+app.include_router(prediction.router)
 app.include_router(websocket.router)
 
 app = FastAPI()
