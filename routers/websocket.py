@@ -4,9 +4,12 @@ import asyncio
 import sqlite3
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from core.alerts import check_alerts
-from core.automation import check_automation_rules, execute_automation_actions
 from core.anomaly import detect_anomalies
 from services.alerts import websocket_alerts, notify_alert_clients
+from services.automation import (
+    check_automation_rules,
+    execute_automation_actions,
+)
 
 DATABASE = "aibiot.db"
 router = APIRouter()
