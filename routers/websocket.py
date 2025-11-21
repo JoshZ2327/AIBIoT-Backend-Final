@@ -10,6 +10,8 @@ from services.automation import (
     check_automation_rules,
     execute_automation_actions,
 )
+from services.anomalies import detect_anomalies
+anomalies = detect_anomalies(sensor_name)
 
 DATABASE = "aibiot.db"
 router = APIRouter()
