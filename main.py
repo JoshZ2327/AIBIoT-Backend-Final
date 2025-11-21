@@ -1,29 +1,18 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-from routers import ingestion, voice, websocket, prediction
+from routers import voice, prediction, alerts, ingestion
+import uvicorn
 
 app = FastAPI(
     title="AIBIoT Platform",
-    description="AI-powered IoT automation and analytics",
+    description="Modular AI-powered IoT automation and analytics platform",
     version="1.0.0"
 )
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Change this to your frontend URL in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Include routers
+app.include_router(voice.router, prefix="/voice", tags=["Voice Commands"])
+app.include_router(prediction.router, prefix="/predict", tags=["Prediction"])
+app.include_router(alerts.router, tags=["Alerts"])
+app.include_router(ingestion.router, prefix="/sensor", tags=["Sensor Ingestion"])
 
-# Register all routers
-app.include_router(ingestion.router)
-app.include_router(voice.router)
-app.include_router(websocket.router)
-app.include_router(prediction.router)
-
-@app.get("/")
-def read_root():
-    return {"message": "AIBIoT backend is running 🚀"}
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
