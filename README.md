@@ -14,32 +14,6 @@ The AIBIoT platform is a modular, intelligent IoT backend designed for real-time
 	•	Digital twin support for device state visualization
 	•	Modular architecture with routers/ and services/ separation
 
-⸻
-
-🏗️ Project Structure
-
-AIBIoT-Backend-Final/
-│
-├── main.py                  # App entry point (replaces index.py)
-├── routers/                 # API endpoints (modularized)
-│   ├── ingestion.py
-│   ├── prediction.py
-│   ├── voice.py
-│   └── websocket.py
-│
-├── services/                # Business logic
-│   ├── anomalies.py
-│   ├── automation.py
-│   ├── data_pipeline.py
-│   ├── digital_twins.py
-│   └── voice_ai.py
-│
-├── database/                # DB initialization and helpers
-│   └── init_db.py
-│
-├── requirements.txt         # Python dependencies
-└── README.md
-
 
 
 ⸻
