@@ -69,6 +69,28 @@ def initialize_database():
         )
     """)
 
+    # Create table for automation rules
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS automation_rules (
+        rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sensor_name TEXT NOT NULL,
+        condition TEXT NOT NULL,  -- e.g., '>', '<', '=='
+        threshold REAL NOT NULL,
+        action TEXT NOT NULL
+    )
+""")
+
+# Create table for automation logs
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS automation_logs (
+        log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        sensor TEXT NOT NULL,
+        action TEXT NOT NULL,
+        value REAL NOT NULL
+    )
+""")
+
     conn.commit()
     conn.close()
     print("✅ Database initialized successfully.")
