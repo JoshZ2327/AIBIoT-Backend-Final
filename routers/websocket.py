@@ -11,29 +11,6 @@ from services.alerts import websocket_alerts, notify_alert_clients
 DATABASE = "aibiot.db"
 router = APIRouter()
 
-# --- ALERTS WEBSOCKET ---
-alert_connections = []
-
-@router.websocket("/ws/alerts")
-async def websocket_alerts(websocket: WebSocket):
-    """WebSocket connection for real-time alerts."""
-    await websocket.accept()
-    alert_connections.append(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        alert_connections.remove(websocket)
-
-async def notify_alert_clients():
-    """Send real-time AI alerts via WebSocket."""
-    alerts = check_alerts()
-    for connection in alert_connections:
-        try:
-            await connection.send_json(alerts)
-        except:
-            alert_connections.remove(connection)
-
 # --- DATA SOURCES WEBSOCKET ---
 @router.websocket("/ws/data-sources")
 async def websocket_data_sources(websocket: WebSocket):
