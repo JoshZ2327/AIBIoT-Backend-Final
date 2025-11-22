@@ -10,6 +10,9 @@ import openai
 from routers import digital_twin
 
 app.include_router(digital_twin.router)
+from routers import network_degradation
+
+app.include_router(network_degradation.router)
 
 # ✅ Initialize FastAPI
 app = FastAPI()
