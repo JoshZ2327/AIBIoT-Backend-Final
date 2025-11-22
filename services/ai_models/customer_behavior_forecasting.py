@@ -51,3 +51,26 @@ class CustomerBehaviorForecastingModel:
         new_df = new_df[self.features]
         predictions = self.model.predict(new_df)
         return predictions.tolist()
+
+import sqlite3
+import datetime
+
+DATABASE = "ai_data.db"
+
+def save_behavior_predictions(customer_id, input_data, predicted_value, model_name="CustomerBehaviorForecastingModel"):
+    """
+    Store model predictions for customer behavior in the database.
+    """
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    input_str = str(input_data)
+
+    cursor.execute("""
+        INSERT INTO customer_behavior_predictions (timestamp, customer_id, model_name, input_data, predicted_value)
+        VALUES (?, ?, ?, ?, ?)
+    """, (timestamp, customer_id, model_name, input_str, predicted_value))
+
+    conn.commit()
+    conn.close()
