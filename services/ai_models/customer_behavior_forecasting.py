@@ -1,29 +1,53 @@
-from sklearn.model_selection import train_test_split
+import pandas as pd
+import numpy as np
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
 
 class CustomerBehaviorForecastingModel:
-    def __init__(self, df, target_column):
-        self.df = df
-        self.target = target_column
+    def __init__(self, data, target_column):
+        """
+        Initialize the forecasting model with raw customer data.
+        :param data: A Pandas DataFrame containing customer behavioral data.
+        :param target_column: The name of the column to forecast (e.g., 'monthly_spend').
+        """
+        self.data = data
+        self.target_column = target_column
         self.model = None
-        self.X_train, self.X_test, self.y_train, self.y_test = (None,) * 4
+        self.features = None
+        self.results = {}
 
-    def preprocess_data(self):
-        self.df = pd.get_dummies(self.df)
-        X = self.df.drop(columns=[self.target])
-        y = self.df[self.target]
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    def train(self):
+        """
+        Train a Random Forest model to predict customer behavior.
+        """
+        X = self.data.drop(columns=[self.target_column])
+        y = self.data[self.target_column]
 
-    def train_model(self):
+        self.features = X.columns.tolist()
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
         self.model = RandomForestRegressor(n_estimators=100, random_state=42)
-        self.model.fit(self.X_train, self.y_train)
+        self.model.fit(X_train, y_train)
 
-    def evaluate_model(self):
-        predictions = self.model.predict(self.X_test)
-        mae = mean_absolute_error(self.y_test, predictions)
-        print(f"MAE: {mae}")
-        return mae
+        y_pred = self.model.predict(X_test)
+        rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 
-    def predict(self, new_data):
-        return self.model.predict(new_data)
+        self.results['rmse'] = rmse
+        self.results['feature_importance'] = dict(zip(self.features, self.model.feature_importances_))
+        return self.results
+
+    def predict_new(self, new_data):
+        """
+        Predict target values for new incoming customer behavior data.
+        :param new_data: A dictionary or list of dictionaries matching the input feature format.
+        :return: List of predictions.
+        """
+        if self.model is None or self.features is None:
+            raise Exception("Model has not been trained yet.")
+
+        new_df = pd.DataFrame(new_data)
+        new_df = new_df[self.features]
+        predictions = self.model.predict(new_df)
+        return predictions.tolist()
