@@ -13,6 +13,8 @@ app.include_router(digital_twin.router)
 from routers import network_degradation
 
 app.include_router(network_degradation.router)
+from routers import pnsdm_router
+app.include_router(pnsdm_router.router)
 
 # ✅ Initialize FastAPI
 app = FastAPI()
