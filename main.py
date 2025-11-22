@@ -15,6 +15,8 @@ from routers import network_degradation
 app.include_router(network_degradation.router)
 from routers import pnsdm_router
 app.include_router(pnsdm_router.router)
+from routers import customer_behavior
+app.include_router(customer_behavior.router)
 
 # ✅ Initialize FastAPI
 app = FastAPI()
